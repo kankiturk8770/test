@@ -16,6 +16,7 @@ import { apiPanel, apiInput } from '../lib/apikeys.js';
 import * as P from '../lib/players.js';
 import { adminPanel, adminJoin } from '../lib/admins.js';
 import * as C from '../lib/cleaner.js';
+import { heartbeat } from '../lib/heartbeat.js';
 
 // Settings the owner can set from the chat (keys never go in the code).
 const SETTABLE = { gemini_key: 'کلید Gemini', gemini_pro_key: 'کلید Gemini Pro', results_footer: 'متن زیر پست نتیجه‌ها', vpn_bot: 'آیدی ربات VPN' };
@@ -112,6 +113,8 @@ export default async function (m) {
       return await P.userMenu(uid);
     } finally {
       await store.saveSession(uid, st);
+      await tick().catch((e) => console.error('tick', e));
+      await heartbeat().catch((e) => console.error('beat', e));
     }
   }
   const st = await store.getSession(uid);
@@ -121,6 +124,7 @@ export default async function (m) {
     await store.saveSession(uid, st);
   }
   await tick().catch((e) => console.error('tick', e));
+  await heartbeat().catch((e) => console.error('beat', e));
 }
 
 async function handle(m, uid, st) {

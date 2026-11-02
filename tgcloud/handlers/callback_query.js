@@ -15,8 +15,17 @@ import { apiAction } from '../lib/apikeys.js';
 import * as P from '../lib/players.js';
 import { adminPanel, adminAction } from '../lib/admins.js';
 import * as C from '../lib/cleaner.js';
+import { heartbeat } from '../lib/heartbeat.js';
 
 export default async function (c) {
+  try {
+    await route(c);
+  } finally {
+    await heartbeat().catch((e) => console.error('beat', e)); // every button keeps the bot's clock going
+  }
+}
+
+async function route(c) {
   const data = c.data || '';
   if (data.startsWith('pq:')) { // a score button under a channel post
     await channelPredict(c);

@@ -13,7 +13,7 @@ import { esc, call, send, now, LINE } from './util.js';
 import * as store from './store.js';
 import { buildMatcher, extractPost, normalize, compileKeyword, parseKeywordInput, regexError, snippet, progressBar } from './cleantext.js';
 
-const BUDGET = 20000; // ms of work per slice (a run has ~30 s)
+const BUDGET = 15000; // ms of work per slice (a run has ~30 s; the heartbeat may add a slice after it)
 const sleep = (ms) => (typeof setTimeout === 'function' ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const one = async (q) => (await db.get(q)) || null;
