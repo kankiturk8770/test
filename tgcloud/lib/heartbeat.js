@@ -7,7 +7,7 @@ import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { now } from './util.js';
 import { autoTick } from './autopost.js';
-import { blankTick, sessionTick } from './cleaner.js';
+import { blankTick, sessionTick, timedTick } from './cleaner.js';
 
 export async function heartbeat() {
   const t = now();
@@ -17,4 +17,5 @@ export async function heartbeat() {
   await autoTick().catch((e) => console.error('auto', e));
   await blankTick(8000).catch((e) => console.error('blank', e)); // a running «🧽 blank old posts» goes on
   await sessionTick().catch((e) => console.error('session', e)); // a kept Mini App login whose time is up
+  await timedTick().catch((e) => console.error('timed', e)); // 🕒 posts planned to delete themselves
 }

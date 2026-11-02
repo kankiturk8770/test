@@ -638,3 +638,28 @@ export async function sessionTick() {
   }
   if (changed) await store.setSetting('cl_sess', JSON.stringify(all));
 }
+
+// ---------- 🕒 posts that delete themselves (chosen in a post's preview) ----------
+// settings 'cl_timed' = [{ c: chat, m: [message ids], at: unix time }]
+const MAX_AFTER = 47 * 3600; // a bot may delete only within 48 hours
+
+/** Plan the deletion of a post the bot just sent, `hours` from now. */
+export async function planDelete(chat, ids, hours) {
+  const list = JSON.parse((await store.getSetting('cl_timed')) || '[]');
+  list.push({ c: Number(chat), m: ids, at: now() + Math.min(Number(hours) * 3600, MAX_AFTER) });
+  await store.setSetting('cl_timed', JSON.stringify(list.slice(-500)));
+}
+
+/** Delete the planned posts whose time has come (from the heartbeat and the cron). */
+export async function timedTick() {
+  const list = JSON.parse((await store.getSetting('cl_timed')) || 'null');
+  if (!list?.length) return;
+  const due = list.filter((x) => x.at <= now());
+  if (!due.length) return;
+  await store.setSetting('cl_timed', JSON.stringify(list.filter((x) => x.at > now()))); // claim them first
+  for (const x of due) {
+    const r = await tg('deleteMessages', { chat_id: x.c, message_ids: x.m });
+    if (!r.ok) for (const id of x.m) await tg('deleteMessage', { chat_id: x.c, message_id: id });
+    for (const id of x.m) await db.run(sql`UPDATE cl_posts SET gone = 1 WHERE chat_id = ${x.c} AND msg_id = ${id}`);
+  }
+}

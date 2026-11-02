@@ -3,6 +3,7 @@ import { esc, call, LINE } from './util.js';
 import { STYLES } from './data.js';
 import { user, bumpCount } from './store.js';
 import { openGiveaway } from './gv.js';
+import { planDelete } from './cleaner.js';
 
 export function build(d) {
   const L = ['✨🎮 <b>درود و خسته نباشید به همگی</b> 🎮✨', '',
@@ -29,7 +30,10 @@ async function sendText(chat, text, photo, markup) {
   const rm = markup ? { reply_markup: { inline_keyboard: markup } } : {};
   if (photo) {
     if (text.length <= 1000) return call('sendPhoto', { chat_id: chat, photo, caption: text, parse_mode: 'HTML', ...rm });
-    await call('sendPhoto', { chat_id: chat, photo });
+    const ph = await call('sendPhoto', { chat_id: chat, photo });
+    const r = await call('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...rm });
+    if (r.ok && ph.ok) r.extra = [ph.result.message_id]; // the banner went as its own message
+    return r;
   }
   return call('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...rm });
 }
@@ -52,10 +56,11 @@ export async function deliver(uid, base, d, targets, pin) {
       good = r.ok;
       err = r.description;
       if (good && pin) await call('pinChatMessage', { chat_id: t, message_id: r.result.message_id });
+      if (good && d.autodel > 0) await planDelete(t, [...(r.extra || []), r.result.message_id], d.autodel); // 🕒 chosen in the preview
     }
     if (good) {
       ok++;
-      lines.push('✅ ' + title);
+      lines.push('✅ ' + title + (base !== 'gv' && d.autodel > 0 ? `\n🕒 ${d.autodel} ساعت بعد خودکار از کانال پاک میشه` : ''));
     } else lines.push(`❌ ${title}\n↳ ${esc(err)}`);
   }
   if (ok) await bumpCount(uid);

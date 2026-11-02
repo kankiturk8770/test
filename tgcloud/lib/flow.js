@@ -66,6 +66,8 @@ async function previewKb(uid, s) {
   }
   rows.push(...grid(steps(s).map(([k, t]) => btn('✏️ ' + t, 'e:' + k)), 3));
   rows.push([btn('📌 پین کردن: ' + (s.pin ? 'روشن ✅' : 'خاموش ❌'), 'pin')]);
+  // delete the post from the channel by itself after a while (a bot may delete only within 48 hours)
+  if (!gv) rows.push([btn('🕒 حذف خودکار از کانال: ' + (s.d.autodel ? `${s.d.autodel} ساعت بعد` : 'خاموش ❌'), 'adel')]);
   rows.push([btn('🚀  ارسال الان  🚀', 'go'), btn('⏰ زمان‌بندی', 'sch')]);
   rows.push([btn('❌ لغو', 'cancel')]);
   return rows;
@@ -399,6 +401,12 @@ export async function sessionCallback(uid, st, data, mid) {
   }
   if (data === 'pin') {
     s.pin = !s.pin;
+    if (s.ctl) await markup(uid, s.ctl, await previewKb(uid, s));
+    return;
+  }
+  if (data === 'adel') { // off → 6 → 12 → 24 → 36 hours → off
+    const steps = [0, 6, 12, 24, 36];
+    s.d.autodel = steps[(steps.indexOf(s.d.autodel || 0) + 1) % steps.length] || undefined;
     if (s.ctl) await markup(uid, s.ctl, await previewKb(uid, s));
     return;
   }
