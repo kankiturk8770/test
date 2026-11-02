@@ -4,14 +4,16 @@
 // than 48 hours ago" — even for an admin bot. So:
 //   • every new post is checked the moment it's published (and again when edited) and deleted if it matches;
 //   • «پاکسازی» deletes the matching posts of the last 48 hours;
-//   • older posts are only counted (Telegram answers "message can't be deleted" for them).
+//   • older posts can't be deleted, but a bot may still EDIT them: «خالی کردن پست‌های قدیمی» turns each one
+//     into a bare «🗑» (its photo/video replaced by a trash-can picture), a slice at a time.
 // The bot never forwards or sends posts anywhere to read them: it reads each post as it's published.
 //
 // Callback data: cf:<act>:<chat>[:arg]   ·   waiting states: st.w = cf:<what>:<chat>
-import { db } from 'sdk';
+import { db, InputFile } from 'sdk';
 import { sql } from 'sdk/db';
 import { esc, call, send, now, LINE } from './util.js';
 import * as store from './store.js';
+import { blankPng } from './cleanblank.js';
 import { buildMatcher, extractPost, normalize, compileKeyword, parseKeywordInput, regexError, snippet, variants } from './cleantext.js';
 
 const WINDOW = 47 * 3600 + 1800; // a little under Telegram's 48 hours
@@ -26,6 +28,8 @@ const R = (t, d) => B(t, d, 'danger');
 const U = (t, d) => B(t, d, 'primary');
 const onOff = (v) => (v ? 'روشن ✅' : 'خاموش ⛔️');
 const tog = (v, t, d) => (v ? G : R)(`${t}: ${onOff(v)}`, d);
+// the Mini App page that deletes old posts with the admin's own account (bots can't, people can)
+const FULL = (chat) => ({ text: '🔐 حذف کامل پست‌های قدیمی (با اکانت خودت)', web_app: { url: `https://app8719466331.tgcloud.ai/clean?c=${chat}` }, style: 'danger' });
 const MODE = { word: 'خود کلمه', contains: 'هر جای متن', regex: 'Regex' };
 
 // ---------- per-channel settings (in the settings table) ----------
@@ -52,13 +56,13 @@ async function savePost(chat, msgId, p, date) {
 }
 
 const matcherFor = async (chat, c, quick) => quick
-  ? buildMatcher({}, [{ id: null, word: quick.word, mode: quick.mode, kind: 'block' }])
+  ? buildMatcher({ smartRoom: !!quick.smart }, [{ id: null, word: quick.word, mode: quick.mode, kind: 'block' }])
   : buildMatcher({ ruleLinks: c.links, ruleForward: c.fwd, smartRoom: c.smart }, await words(chat));
 
 /** Matching live posts, split into deletable (last 48 h) and too old. */
 async function collect(chat, matcher) {
   const fresh = [];
-  let old = 0;
+  const oldItems = [];
   let after = 0;
   const since = now() - WINDOW;
   for (;;) {
@@ -67,10 +71,11 @@ async function collect(chat, matcher) {
     for (const p of page) {
       const m = matcher({ body: p.body, hasLink: !!p.link, isForward: !!p.fwd });
       if (!m) continue;
-      if (p.date && p.date >= since) fresh.push({ id: p.id, body: p.body, mgroup: p.mgroup, reason: m.reason, kw: m.keywordId });
-      else old++;
+      const item = { id: p.id, body: p.body, mgroup: p.mgroup, reason: m.reason, kw: m.keywordId };
+      if (p.date && p.date >= since) fresh.push(item);
+      else oldItems.push(item);
     }
-    if (page.length < 500) return { fresh, old };
+    if (page.length < 500) return { fresh, old: oldItems.length, oldItems };
     after = page[page.length - 1].id;
   }
 }
@@ -217,6 +222,8 @@ export async function panel(uid, chat, mid = null, note = '') {
     [
       [G('➕ افزودن کلمه', `cf:wa:${id}:block`), U('📋 لیست کلمه‌ها', `cf:w:${id}:block:0`)],
       [R('🗑 الان پاکسازی کن', `cf:pg:${id}`), R('🧨 حذف با یه کلمه', `cf:q:${id}`)],
+      [FULL(id)],
+      [R('🧽 خالی کردن پست‌های قدیمی (بیشتر از ۴۸ ساعت)', `cf:bl:${id}`)],
       [tog(c.auto, '🛡 حذف خودکار پست‌های جدید', `cf:t:${id}:auto`)],
       [tog(c.smart, '🧠 تشخیص پست‌های روم (ساعت، مپ، جایزه، ID…)', `cf:t:${id}:smart`)],
       [tog(c.links, '🔗 لینک‌دار', `cf:t:${id}:links`), tog(c.fwd, '↪️ فورواردی', `cf:t:${id}:fwd`)],
@@ -267,13 +274,111 @@ async function purge(uid, chat, mid, quick = null) {
     `🗑 <b>پاکسازی با ${what}</b>\n${LINE}\n` +
     `✅ از کانال حذف شد: <b>${fmt(r.deleted)}</b> پست\n` +
     (r.rate ? '⏳ تلگرام سرعت رو محدود کرد؛ چند ثانیه دیگه دوباره بزن.\n' : '') +
-    (tooOld ? `\n⛔️ <b>${fmt(tooOld)}</b> پست قدیمی‌تر از ۴۸ ساعت هم مطابق بودن. تلگرام به هیچ رباتی اجازه نمیده پست‌های قدیمی‌تر از ۴۸ ساعت رو پاک کنه (حتی اگه ادمین باشه)؛ اون‌ها رو فقط خود ادمین از توی تلگرام می‌تونه پاک کنه.\n` : '') +
+    (tooOld ? `\n⛔️ <b>${fmt(tooOld)}</b> پست قدیمی‌تر از ۴۸ ساعت هم مطابقن. تلگرام به ربات اجازه‌ی <b>حذف</b> اون‌ها رو نمیده، ولی دو راه داری:\n🔐 <b>حذف کامل</b> با اکانت خودت (یه بار وارد میشی، همه پاک میشن، آخرش خارج میشه)\n🧽 <b>خالی کردن</b> با ربات: متن میشه «🗑» و عکس میشه سطل‌زباله\n` : '') +
     (!r.deleted && !tooOld ? '\n✨ پستی پیدا نشد.\n' : '') +
     (c.auto && !quick ? '\n🛡 از این به بعد هر پست جدید با این کلمه‌ها همون لحظه حذف میشه.' : ''),
     [
+      tooOld ? [FULL(chat)] : [],
+      tooOld ? [R(`🧽 خالی کردن ${fmt(tooOld)} پست قدیمی`, `cf:bl:${chat}${quick ? ':q' : ''}`)] : [],
       quick ? [G('➕ این کلمه رو همیشه فیلتر کن', `cf:qs:${chat}`)] : [],
       [B('📊 گزارش', `cf:st:${chat}`), B('🔙 پنل', `cf:p:${chat}`)],
     ]);
+}
+
+// ---------- 🧽 blanking old posts (they can't be deleted, but they can be edited) ----------
+// settings 'cl_blank' = { chat, uid, mid, quick, done, skipped, total }
+const BLANK_BUDGET = 12000; // the heartbeat may add a slice right after
+const getBlank = async () => JSON.parse((await store.getSetting('cl_blank')) || 'null');
+const setBlank = (j) => store.setSetting('cl_blank', j ? JSON.stringify(j) : null);
+
+/** Turn one post into «🗑». -> 'done' | 'gone' | 'skip' | 'rate' */
+async function blankOne(chat, id) {
+  let r = await tg('editMessageText', { chat_id: chat, message_id: id, text: '🗑' });
+  if (r.ok) return 'done';
+  let d = (r.description || '').toLowerCase();
+  if (r.code === 429) return 'rate';
+  if (d.includes('not modified')) return 'done';
+  if (d.includes('not found')) return 'gone';
+  if (!d.includes('no text')) return 'skip'; // a sticker, a poll, a service message…
+  // a photo / video / file: swap it for the trash-can picture
+  const cached = await store.getSetting('cl_blank_photo');
+  const media = { type: 'photo', media: cached || new InputFile(blankPng(), 'deleted.png', { type: 'image/png' }), caption: '🗑' };
+  r = await tg('editMessageMedia', { chat_id: chat, message_id: id, media });
+  if (r.ok) {
+    if (!cached && r.result?.photo?.length) await store.setSetting('cl_blank_photo', r.result.photo[r.result.photo.length - 1].file_id);
+    return 'done';
+  }
+  if (r.code === 429) return 'rate';
+  d = (r.description || '').toLowerCase();
+  if (d.includes('not modified')) return 'done';
+  // an album item may only become the same kind: at least empty its caption
+  r = await tg('editMessageCaption', { chat_id: chat, message_id: id, caption: '🗑' });
+  if (r.code === 429) return 'rate';
+  return r.ok || /not modified/i.test(r.description || '') ? 'done' : 'skip';
+}
+
+/** One slice of the blanking job; updates its progress message. Buttons and the heartbeat call it. */
+export async function blankTick(budget = BLANK_BUDGET) {
+  const j = await getBlank();
+  if (!j) return;
+  const t0 = Date.now();
+  const lock = (await db.run(sql`INSERT INTO settings (k, v) VALUES ('cl_blank_lock', ${String(now())})
+    ON CONFLICT(k) DO UPDATE SET v = excluded.v WHERE CAST(settings.v AS INTEGER) < ${now() - 40} RETURNING v`)).rows[0];
+  if (!lock) return blankMessage(j, false);
+  let finished = false;
+  let rate = false;
+  try {
+    const c = await cfg(j.chat);
+    const { oldItems } = await collect(j.chat, await matcherFor(j.chat, c, j.quick));
+    if (!oldItems.length) finished = true;
+    for (const x of oldItems) {
+      if (Date.now() - t0 > budget) break;
+      const res = await blankOne(j.chat, x.id);
+      if (res === 'rate') { rate = true; break; }
+      await db.run(sql`UPDATE cl_posts SET gone = ${res === 'skip' ? 2 : 1} WHERE chat_id = ${j.chat} AND msg_id = ${x.id}`);
+      if (res === 'done') {
+        j.done++;
+        await db.run(sql`INSERT INTO cl_logs (chat_id, msg_id, reason, snip, src, at) VALUES (${j.chat}, ${x.id}, ${x.reason}, ${snippet(x.body, 80)}, 'blank', ${now()})`);
+      } else if (res === 'skip') j.skipped++;
+    }
+    if (!finished) finished = !(await collect(j.chat, await matcherFor(j.chat, c, j.quick))).oldItems.length;
+  } finally {
+    const cur = await getBlank();
+    if (cur) await setBlank(finished ? null : { ...j, mid: cur.mid }); // a stop meanwhile wins
+    await store.setSetting('cl_blank_lock', '0');
+  }
+  if (finished || (await getBlank())) await blankMessage(j, finished, rate);
+}
+
+async function blankMessage(j, finished, rate = false) {
+  const left = Math.max(0, j.total - j.done - j.skipped);
+  const text = `🧽 <b>خالی کردن پست‌های قدیمی</b>\n${LINE}\n` +
+    `${progressBar(j.done + j.skipped, j.total)}  <b>${Math.floor(((j.done + j.skipped) / Math.max(j.total, 1)) * 100)}%</b>\n` +
+    `✅ خالی شد: <b>${fmt(j.done)}</b> از ${fmt(j.total)}\n` + (j.skipped ? `⏭ قابل ویرایش نبود (استیکر، نظرسنجی…): ${fmt(j.skipped)}\n` : '') +
+    (finished ? '\n✅ <b>تموم شد!</b>' : rate ? '\n⏳ تلگرام سرعت ویرایش رو محدود کرد؛ چند ثانیه دیگه «ادامه» رو بزن (یا خودش با پیام بعدی ادامه میده).' : `\n⏳ باقی‌مونده: ${fmt(left)} — «ادامه» رو بزن (یا خودش کم‌کم ادامه میده).`);
+  const kb = finished ? [[B('📊 گزارش', `cf:st:${j.chat}`), B('🔙 پنل', `cf:p:${j.chat}`)]]
+    : [[G('▶️ ادامه', `cf:blg:${j.chat}`), R('⏹ توقف', `cf:bls:${j.chat}`)]];
+  const r = j.mid && (await call('editMessageText', { chat_id: j.uid, message_id: j.mid, text, parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } }));
+  if (!r || (!r.ok && !/not modified/i.test(r.description || ''))) {
+    const s = await send(j.uid, text, kb);
+    const cur = await getBlank();
+    if (s.ok && cur) await setBlank({ ...cur, mid: s.result.message_id });
+  }
+}
+
+const progressBar = (done, total, width = 12) => {
+  const f = total ? Math.max(0, Math.min(width, Math.round((done / total) * width))) : 0;
+  return '▰'.repeat(f) + '▱'.repeat(width - f);
+};
+
+async function blankAsk(uid, chat, mid, quick) {
+  const c = await cfg(chat);
+  const { oldItems } = await collect(chat, await matcherFor(chat, c, quick));
+  if (!oldItems.length) return panel(uid, chat, mid, '✨ پست قدیمیِ مطابقی نمونده.');
+  return edit(uid, mid,
+    `🧽 <b>خالی کردن پست‌های قدیمی</b>\n${LINE}\n<b>${fmt(oldItems.length)}</b> پست قدیمی ${quick ? `با «<b>${esc(quick.word)}</b>»` : 'با کلمه‌های فیلتر'} پیدا شد.\n\n` +
+    'متن هر کدوم میشه «🗑» و عکس/ویدیوش میشه یه عکس سطل‌زباله. پست توی کانال می‌مونه ولی چیزی ازش باقی نمی‌مونه.\n\n❗️ برگشت‌پذیر نیست.',
+    [[R(`🧽 آره، ${fmt(oldItems.length)} پست خالی بشه`, `cf:bly:${chat}${quick ? ':q' : ''}`)], [G('❌ نه', `cf:p:${chat}`)]]);
 }
 
 async function stats(uid, chat, mid) {
@@ -282,9 +387,9 @@ async function stats(uid, chat, mid) {
   const top = (await db.all(sql`SELECT word, hits FROM cl_words WHERE chat_id = ${chat} AND kind = 'block' AND hits > 0 ORDER BY hits DESC LIMIT 6`))
     .map((w, i) => `${i + 1}. <b>${esc(snippet(w.word, 20))}</b> — ${fmt(w.hits)}`).join('\n');
   const logs = (await db.all(sql`SELECT * FROM cl_logs WHERE chat_id = ${chat} ORDER BY id DESC LIMIT 8`))
-    .map((l) => `${{ purge: '🗑', auto: '🛡', quick: '🧨' }[l.src] || '•'} «${esc(snippet(l.reason, 15))}» ${esc(snippet(l.snip, 30))}`).join('\n');
+    .map((l) => `${{ purge: '🗑', auto: '🛡', quick: '🧨', blank: '🧽' }[l.src] || '•'} «${esc(snippet(l.reason, 15))}» ${esc(snippet(l.snip, 30))}`).join('\n');
   return edit(uid, mid,
-    `📊 <b>گزارش</b>\n${LINE}\n🗑 کل حذف‌ها: <b>${fmt(c.deleted)}</b>\n   🛡 خودکار: ${fmt(src.auto)} · 🗑 پاکسازی: ${fmt(src.purge)} · 🧨 با یه کلمه: ${fmt(src.quick)}\n\n` +
+    `📊 <b>گزارش</b>\n${LINE}\n🗑 کل حذف‌ها: <b>${fmt(c.deleted)}</b>\n   🛡 خودکار: ${fmt(src.auto)} · 🗑 پاکسازی: ${fmt(src.purge)} · 🧨 با یه کلمه: ${fmt(src.quick)}\n🧽 پست قدیمی خالی‌شده: <b>${fmt(src.blank)}</b>\n\n` +
     (top ? `🏆 <b>بیشترین حذف:</b>\n${top}\n\n` : '') + (logs ? `🧾 <b>آخرین حذف‌ها:</b>\n${logs}` : '<i>هنوز چیزی حذف نشده.</i>'),
     [[B('🔄 بروزرسانی', `cf:st:${chat}`), B('🔙 پنل', `cf:p:${chat}`)]]);
 }
@@ -306,8 +411,8 @@ const HELP = `❓ <b>پاکسازی کانال چطور کار می‌کنه؟</
   '2️⃣ از اون لحظه هر پست جدیدی که اون کلمه‌ها رو داشته باشه، خودکار و فوری از کانال حذف میشه.\n' +
   '3️⃣ «الان پاکسازی کن» پست‌های ۴۸ ساعت اخیر رو هم پاک می‌کنه.\n\n' +
   '🧠 <b>تشخیص پست‌های روم</b>: پست‌هایی که ساعت، مپ، جایزه/یوسی، ID و Pass و… دارن رو حتی بدون کلمه‌ی «روم» تشخیص میده.\n\n' +
-  '⛔️ <b>پست‌های قدیمی‌تر از ۴۸ ساعت</b>: قانون خود تلگرامه که هیچ رباتی (حتی ادمین) نمی‌تونه پیام‌های قدیمی‌تر از ۴۸ ساعت رو پاک کنه. ' +
-  'اون‌ها رو باید خودت از توی تلگرام پاک کنی: توی کانال 🔍 جستجو کن «روم»، روی پست نگه دار ← Delete.';
+  '⛔️ <b>پست‌های قدیمی‌تر از ۴۸ ساعت</b>: قانون خود تلگرامه که هیچ رباتی (حتی ادمین) نمی‌تونه پیام‌های قدیمی‌تر از ۴۸ ساعت رو <b>حذف</b> کنه؛ ' +
+  'ولی:\n🔐 «حذف کامل» با اکانت خودت (توی مینی‌اپ، روی گوشی خودت) همه رو واقعاً پاک می‌کنه و آخرش از اکانتت خارج میشه؛\n🧽 «خالی کردن» با ربات متنشون رو «🗑» و عکسشون رو سطل‌زباله می‌کنه.';
 
 // ---------- buttons ----------
 export async function action(uid, st, data, mid) {
@@ -342,6 +447,25 @@ export async function action(uid, st, data, mid) {
       await db.run(sql`DELETE FROM cl_words WHERE chat_id = ${chat} AND kind = ${b === 'allow' ? 'allow' : 'block'}`);
       return wordList(uid, chat, b, 0, mid);
     case 'pg': return purge(uid, chat, mid);
+    case 'bl': return blankAsk(uid, chat, mid, b === 'q' ? st.clq : null);
+    case 'bly': {
+      const quick = b === 'q' ? st.clq : null;
+      if (b === 'q' && !quick) return panel(uid, chat, mid, '⌛️ وقتش تموم شد؛ دوباره کلمه رو بفرست.');
+      const cur = await getBlank();
+      if (cur && cur.chat !== chat) return panel(uid, chat, mid, '⏳ یه کار خالی‌کردن دیگه در جریانه.');
+      const { oldItems } = await collect(chat, await matcherFor(chat, await cfg(chat), quick));
+      await setBlank({ chat, uid, mid, quick: quick ? { word: quick.word, mode: quick.mode, smart: !!quick.smart } : null, done: 0, skipped: 0, total: oldItems.length });
+      return blankTick();
+    }
+    case 'blg': {
+      const j = await getBlank();
+      if (!j) return panel(uid, chat, mid, '✅ کاری در جریان نیست.');
+      await setBlank({ ...j, mid });
+      return blankTick();
+    }
+    case 'bls':
+      await setBlank(null);
+      return panel(uid, chat, mid, '⏹ متوقف شد.');
     case 'q':
       st.w = `cf:quick:${chat}`;
       return edit(uid, mid, `🧨 <b>حذف با یه کلمه</b>\n${LINE}\nکلمه رو بفرست؛ همون لحظه همه‌ی پست‌هایی که این کلمه رو دارن پاک میشن (فارسی و انگلیسیش با هم).`, [[R('❌ لغو', `cf:p:${chat}`)]]);

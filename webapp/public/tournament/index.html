@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>تورنمنت پابجی</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preload" href="assets/fonts/Vazirmatn.woff2" as="font" type="font/woff2" crossorigin>
+
+<style>
+  :root {
+    --bg: #000000; --card: #111111; --card2: #191919; --line: #2a2a2a; --text: #ffffff; --sub: #8f8f8f;
+    --gold: #F2A900; --gold2: #FFD700; --glow: rgba(242, 169, 0, .35); --ok: #3ddc84; --bad: #ff4d4d;
+    --cut: 12px; --hz: repeating-linear-gradient(-45deg, var(--gold) 0 10px, #000 10px 20px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.7 Vazirmatn, Tahoma, sans-serif; }
+  /* the map grid of the battleground, very faint */
+  body { min-height: 100vh; overflow-x: hidden; background:
+    linear-gradient(rgba(242, 169, 0, .035) 1px, transparent 1px) 0 0 / 46px 46px,
+    linear-gradient(90deg, rgba(242, 169, 0, .035) 1px, transparent 1px) 0 0 / 46px 46px, #000; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 14px 170px; }
+  bdi { unicode-bidi: isolate; }
+  .muted { color: var(--sub); }
+  .gold { color: var(--gold); }
+  .ok { color: var(--ok); }
+  .en { font-family: Teko, Vazirmatn, sans-serif; letter-spacing: 1.5px; direction: ltr; }
+  /* animations only when a tab opens, never on a refresh or a tap inside the page */
+  .fx .in { animation: up .45s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes up { from { opacity: 0; transform: translateY(12px); } }
+  .chamf { clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+
+  /* header */
+  header { position: sticky; top: 0; z-index: 6; background: rgba(0, 0, 0, .94); backdrop-filter: blur(12px); }
+  header::after { content: ''; display: block; height: 4px; background: var(--hz); opacity: .9; }
+  .hd { max-width: 640px; margin: 0 auto; padding: 8px 14px; display: flex; align-items: center; gap: 10px; }
+  .hd .cup { width: 40px; height: 40px; flex: none; display: grid; place-items: center; font-size: 1.4rem; background: var(--gold);
+    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+  .hd h1 { margin: 0; font-size: 1rem; font-weight: 900; line-height: 1.35; }
+  .hd .st { font-size: .74rem; color: var(--sub); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold2); animation: ping 1.6s infinite; flex: none; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(242, 169, 0, .6); } 70% { box-shadow: 0 0 0 8px rgba(242, 169, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(242, 169, 0, 0); } }
+  @keyframes bob { 50% { transform: translateY(-4px) rotate(-6deg); } }
+
+  /* cards: chamfered tactical plates */
+  .card { position: relative; background: linear-gradient(160deg, #161616, #0c0c0c); padding: 14px; margin-top: 12px;
+    clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+    box-shadow: inset 0 0 0 1px rgba(242, 169, 0, .16); }
+  .card::before { content: ''; position: absolute; top: 0; right: 0; width: 64px; height: 3px; background: var(--gold); }
+  .card.glow { box-shadow: inset 0 0 0 1px rgba(242, 169, 0, .5), inset 0 0 30px rgba(242, 169, 0, .06); }
+  .ttl { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: .98rem; font-weight: 900; }
+  .ttl small { margin-inline-start: auto; font: 500 .95rem Teko, sans-serif; color: var(--gold); letter-spacing: 2px; direction: ltr; white-space: nowrap; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 12px 0 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; border: 0; background: var(--card2); color: var(--text); padding: 6px 14px; font: inherit; font-size: .82rem; cursor: pointer;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); box-shadow: inset 0 0 0 1px var(--line); }
+  .chip.on { background: var(--gold); color: #000; font-weight: 800; }
+
+  /* hero: the plane, the flight path and the airdrop */
+  .hero { text-align: center; padding: 0 0 14px; overflow: hidden; }
+  .scene { display: block; width: 100%; height: auto; margin-bottom: -18px; }
+  .scene .route { stroke: rgba(255, 255, 255, .35); stroke-width: 1.5; stroke-dasharray: 6 6; fill: none; animation: route 1.4s linear infinite; }
+  @keyframes route { to { stroke-dashoffset: -24; } }
+  .scene .drop { animation: drop 6s ease-in-out infinite; transform-origin: 250px 20px; }
+  @keyframes drop { 0% { transform: translate(0, -30px) rotate(-6deg); opacity: 0; } 15% { opacity: 1; } 50% { transform: translate(-10px, 22px) rotate(5deg); } 85% { opacity: 1; } 100% { transform: translate(-18px, 70px) rotate(-3deg); opacity: 0; } }
+  .scene .smoke { animation: smoke 2.4s ease-out infinite; }
+  @keyframes smoke { from { opacity: .7; transform: scale(.6); } to { opacity: 0; transform: scale(1.8) translateY(-14px); } }
+  .hero h2 { position: relative; margin: 6px 14px 2px; font-size: 1.2rem; font-weight: 900; }
+  .tagline { font: 500 1.35rem Teko, sans-serif; letter-spacing: 4px; color: var(--gold); direction: ltr; line-height: 1; text-shadow: 0 0 14px var(--glow); }
+  .badge { display: inline-block; padding: 2px 14px; background: var(--gold); color: #000; font-size: .78rem; font-weight: 800;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 14px 0; }
+  .stat { background: #0a0a0a; padding: 8px 4px; box-shadow: inset 0 0 0 1px var(--line);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .stat b { display: block; font-size: 1.45rem; font-weight: 900; color: var(--gold); line-height: 1.3; }
+  .stat span { font-size: .72rem; color: var(--sub); }
+
+  /* roadmap: map markers on a flight line, a laser runs along the part already played */
+  .road { position: relative; padding: 8px 0 4px; }
+  .track { position: absolute; top: 28px; right: 22px; left: 22px; height: 4px; background: repeating-linear-gradient(90deg, #333 0 8px, transparent 8px 14px); }
+  .fill { position: absolute; top: 28px; right: 22px; height: 4px; background: linear-gradient(270deg, var(--gold2), var(--gold)); box-shadow: 0 0 12px var(--gold); width: 0; }
+  .fx .fill { transition: width 1.4s cubic-bezier(.2, .8, .2, 1); }
+  .laser { position: absolute; top: 21px; width: 54px; height: 18px; margin-right: -27px; border-radius: 50%;
+    background: radial-gradient(closest-side, #fff, var(--gold2) 40%, rgba(242, 169, 0, 0)); animation: zap 2.4s cubic-bezier(.5, 0, .3, 1) infinite; opacity: 0; }
+  @keyframes zap { 0% { right: 22px; opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { right: var(--to); opacity: 0; } }
+  .steps { position: relative; display: flex; justify-content: space-between; }
+  .step { width: 64px; text-align: center; cursor: pointer; }
+  .step .c { width: 44px; height: 44px; margin: 0 auto; display: grid; place-items: center; font-size: 1.1rem; background: #222; transition: transform .2s;
+    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+  .step .c span { display: grid; place-items: center; width: 38px; height: 38px; background: #0b0b0b; clip-path: inherit; }
+  .step.done .c { background: var(--gold); }
+  .step.done .c span { background: #241a00; }
+  .step.live .c { background: var(--gold2); animation: halo 1.4s ease-in-out infinite; }
+  @keyframes halo { 50% { filter: drop-shadow(0 0 10px var(--gold2)); transform: scale(1.08); } }
+  .step.sel .c { transform: scale(1.12); }
+  .step > span { display: block; font-size: .68rem; margin-top: 5px; color: var(--sub); line-height: 1.35; }
+  .step.done > span, .step.live > span { color: var(--text); }
+  .detail { margin-top: 12px; padding: 12px; background: #0a0a0a; box-shadow: inset 0 0 0 1px var(--line);
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  .gr { display: grid; gap: 8px; margin-top: 8px; }
+  .g { padding: 8px 4px; text-align: center; background: var(--card2); cursor: pointer; box-shadow: inset 0 0 0 1px var(--line);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .g.done { box-shadow: inset 0 0 0 1px rgba(242, 169, 0, .6); } .g.live { box-shadow: inset 0 0 0 1.5px var(--gold2); }
+  .g b { display: block; font: 600 1.6rem/1.1 Teko, Vazirmatn, sans-serif; color: var(--gold); }
+  .g small { display: block; font-size: .68rem; color: var(--sub); }
+  .bar { height: 4px; background: #262626; margin: 6px 8px 0; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: var(--w); background: linear-gradient(90deg, var(--gold), var(--gold2)); }
+  .fx .bar i { width: 0; animation: grow 1.1s .2s cubic-bezier(.2, .8, .2, 1) forwards; }
+  @keyframes grow { to { width: var(--w); } }
+
+  /* accordion: one open at a time */
+  .acc { margin-top: 10px; background: #0f0f0f; box-shadow: inset 0 0 0 1px var(--line);
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); scroll-margin-top: 80px; }
+  .acc > button { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; color: var(--text); font: inherit; font-weight: 800; padding: 12px 14px; cursor: pointer; text-align: right; }
+  .acc > button i { margin-inline-start: auto; font-style: normal; color: var(--gold); transition: transform .25s; }
+  .acc.open { box-shadow: inset 0 0 0 1px rgba(242, 169, 0, .5); }
+  .acc.open > button { background: linear-gradient(90deg, transparent, rgba(242, 169, 0, .1)); }
+  .acc.open > button i { transform: rotate(180deg); }
+  .acc .body { display: none; padding: 0 14px 14px; color: #ddd; font-size: .9rem; }
+  .acc.open .body { display: block; animation: up .3s both; }
+  .ol { margin: 0; padding: 0 18px 0 0; }
+  .ol li { margin-bottom: 6px; }
+  .ol li::marker { color: var(--gold); font-weight: 900; }
+  .pts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+  .pts div { background: var(--card2); padding: 6px 2px; text-align: center; font-size: .74rem; color: var(--sub);
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+  .pts b { display: block; font-size: 1.15rem; color: var(--text); }
+  .pts .top b { color: var(--gold); }
+  .ex { margin-top: 10px; padding: 8px 10px; border-right: 3px solid var(--gold); background: rgba(242, 169, 0, .07); }
+  .warn { position: relative; padding: 10px 12px 10px 12px; margin-top: 10px; background: #160505; color: #ffd6d6; font-size: .86rem; border-right: 4px solid var(--bad); }
+  .warn::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: repeating-linear-gradient(-45deg, var(--bad) 0 6px, transparent 6px 12px); opacity: .7; }
+
+  /* list rows */
+  .li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: var(--card2); margin-top: 6px;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .li .ic { width: 40px; height: 38px; display: grid; place-items: center; flex: none; background: #0a0a0a; font-weight: 900; color: var(--gold); font-size: .9rem;
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+  .li .tx { flex: 1; min-width: 0; }
+  .li .tx b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+  .li .tx span { display: block; font-size: .74rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .li .rt { text-align: left; font-size: .8rem; white-space: nowrap; }
+  .li.mine { background: linear-gradient(90deg, var(--card2), rgba(242, 169, 0, .16)); box-shadow: inset -3px 0 0 var(--gold); }
+  .day { margin: 16px 2px 2px; font-size: .82rem; font-weight: 800; color: var(--gold); }
+
+  /* results */
+  .mc { background: #0f0f0f; margin-top: 10px; box-shadow: inset 0 0 0 1px var(--line); scroll-margin-top: 80px;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  .mc.open { box-shadow: inset 0 0 0 1px rgba(242, 169, 0, .55); }
+  .mc .mh { display: flex; align-items: center; gap: 10px; padding: 11px 12px; cursor: pointer; }
+  .mc .num { width: 42px; height: 42px; display: grid; place-items: center; font: 600 1.5rem Teko, Vazirmatn, sans-serif; color: #000; background: var(--gold); flex: none;
+    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+  .mc .info { flex: 1; min-width: 0; }
+  .mc .info b { display: block; }
+  .mc .info span { font-size: .75rem; color: var(--sub); }
+  .mc .arw { color: var(--gold); transition: transform .25s; }
+  .mc.open .arw { transform: rotate(180deg); }
+  .mc .mb { display: none; padding: 0 12px 12px; }
+  .mc.open .mb { display: block; animation: up .3s both; }
+  .win { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: linear-gradient(135deg, rgba(242, 169, 0, .25), rgba(242, 169, 0, .03));
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); box-shadow: inset 0 0 0 1px rgba(242, 169, 0, .5); }
+  .win .e { font-size: 1.9rem; animation: bob 2.6s ease-in-out infinite; }
+  .win b { display: block; font-size: 1.05rem; }
+  .win .wl { font: 500 1.05rem/1 Teko, sans-serif; letter-spacing: 1.5px; color: var(--gold); direction: ltr; text-align: right; display: block; }
+  .win span { font-size: .75rem; color: var(--sub); }
+  .sh { margin: 12px 0 4px; font-size: .8rem; color: var(--gold); font-weight: 800; }
+  .kb { display: grid; gap: 5px; }
+  .kb .r { display: grid; grid-template-columns: 7em 1fr 2.4em; align-items: center; gap: 8px; font-size: .8rem; }
+  .kb .r .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kb .tr { height: 10px; background: #222; overflow: hidden; transform: skewX(-20deg); }
+  .kb .tr i { display: block; height: 100%; width: var(--w); background: linear-gradient(90deg, var(--gold), var(--gold2)); }
+  .mc.open .kb .tr i { width: 0; animation: grow 1s cubic-bezier(.2, .8, .2, 1) forwards; }
+  .kb .v { text-align: left; font-weight: 800; }
+
+  /* teams */
+  .gt { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; }
+  .gt .L { width: 36px; height: 36px; display: grid; place-items: center; font: 600 1.4rem Teko, Vazirmatn, sans-serif; color: #000; background: var(--gold);
+    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+  .gt b { flex: 1; } .gt span { font-size: .75rem; color: var(--sub); }
+  .tg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tc { position: relative; padding: 9px 10px; background: var(--card2); cursor: pointer; min-width: 0; box-shadow: inset 0 0 0 1px var(--line);
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  .tc:active { transform: scale(.97); }
+  .tc b { display: block; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 26px; }
+  .tc span { font-size: .72rem; color: var(--sub); }
+  .tc .sl { position: absolute; top: 6px; left: 10px; font: 500 1rem Teko, sans-serif; color: var(--gold); }
+  .tc.q { box-shadow: inset 0 0 0 1px rgba(61, 220, 132, .55); } .tc.out { opacity: .45; }
+  .tc.mine { box-shadow: inset 0 0 0 1.5px var(--gold); background: linear-gradient(135deg, rgba(242, 169, 0, .16), var(--card2)); }
+  .tc.pend { box-shadow: inset 0 0 0 1px #555; opacity: .8; }
+
+  /* table */
+  .tbl { margin-top: 8px; }
+  .tr2 { display: grid; grid-template-columns: 30px 1fr 30px 34px 42px; gap: 6px; align-items: center; padding: 8px; margin-top: 4px; background: var(--card2); cursor: pointer;
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+  .tr2.head { position: sticky; top: 62px; z-index: 2; background: var(--gold); color: #000; cursor: default; font-size: .72rem; font-weight: 900; }
+  .tr2 .rk { text-align: center; font: 600 1.2rem Teko, Vazirmatn, sans-serif; }
+  .tr2 .nm { min-width: 0; } .tr2 .nm b { display: block; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tr2 .nm span { font-size: .68rem; color: var(--sub); }
+  .tr2 .c { text-align: center; font-size: .85rem; }
+  .tr2 .p { text-align: center; font-weight: 900; color: var(--gold); }
+  .tr2.head .p { color: #000; }
+  .tr2.q { box-shadow: inset -3px 0 0 var(--ok); } .tr2.out { opacity: .5; }
+  .tr2.mine { background: linear-gradient(90deg, var(--card2), rgba(242, 169, 0, .2)); box-shadow: inset -3px 0 0 var(--gold); }
+  .cut { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; color: var(--ok); font-size: .74rem; font-weight: 800; }
+  .cut::before, .cut::after { content: ''; flex: 1; height: 3px; background: repeating-linear-gradient(-45deg, var(--ok) 0 5px, transparent 5px 10px); }
+  .podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; }
+  .pod { flex: 1; max-width: 120px; text-align: center; }
+  .pod b { display: block; font-size: .8rem; margin-bottom: 5px; word-break: break-word; }
+  .pod .s { display: grid; place-items: center; font: 600 2.2rem Teko, sans-serif; color: #000; transform-origin: bottom;
+    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px); }
+  .fx .pod .s { animation: rise 1s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes rise { from { transform: scaleY(0); } }
+
+  /* sheet */
+  .shb { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .75); animation: fade .2s; }
+  @keyframes fade { from { opacity: 0; } }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 86vh; overflow-y: auto; background: #080808;
+    padding: 0 16px calc(18px + env(safe-area-inset-bottom)); animation: slide .35s cubic-bezier(.2, .8, .2, 1); }
+  .sheet::before { content: ''; display: block; height: 5px; margin: 0 -16px 10px; background: var(--hz); }
+  @keyframes slide { from { transform: translateY(100%); } }
+  .grab { width: 42px; height: 5px; background: #333; margin: 0 auto 10px; }
+  .sheet h3 { margin: 0; font-size: 1.15rem; font-weight: 900; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .tags span { font-size: .72rem; padding: 2px 10px; background: var(--card2); color: var(--sub); clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+  .tags .y { background: var(--gold); color: #000; font-weight: 800; }
+  .tags .g { background: rgba(61, 220, 132, .18); color: var(--ok); box-shadow: none; padding: 2px 10px; display: inline; }
+  .tags .r { background: rgba(255, 77, 77, .18); color: var(--bad); }
+  .sg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .sg div { background: var(--card2); padding: 7px 2px; text-align: center; font-size: .7rem; color: var(--sub);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .sg b { display: block; font-size: 1.15rem; color: var(--text); font-weight: 900; }
+  .mem.lead .ic { background: var(--gold); color: #000; }
+  .btn { display: block; width: 100%; margin-top: 10px; border: 0; padding: 12px; font: inherit; font-weight: 900; cursor: pointer; color: #000; background: var(--gold);
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+  .btn.ghost { background: var(--card2); color: var(--text); }
+  .btn.red { background: #2a0a0a; color: var(--bad); }
+  .btn.sm { display: inline-block; width: auto; padding: 6px 14px; font-size: .78rem; margin: 0; }
+
+  /* admin form */
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .fld { display: block; font-size: .74rem; color: var(--sub); }
+  .fld input { display: block; width: 100%; margin-top: 3px; padding: 8px 10px; border: 0; background: #0a0a0a; color: var(--text); font: inherit; direction: ltr; text-align: center;
+    box-shadow: inset 0 0 0 1px var(--line); }
+  .fld input:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--gold); }
+  .tin { width: 92px; padding: 4px 6px; border: 0; background: #0a0a0a; color: var(--text); font: inherit; font-size: .8rem; direction: ltr; text-align: center; box-shadow: inset 0 0 0 1px var(--line); }
+  /* folds */
+  .fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::after { content: '▾'; color: var(--gold); transition: transform .2s; }
+  .fold[open] > summary::after { transform: rotate(180deg); }
+  .fold .fb { padding-top: 8px; }
+  .fold.mini { margin-top: 10px; font-size: .78rem; color: var(--sub); }
+  .fold.mt { margin-top: 6px; background: var(--card2); padding: 9px 12px; }
+  .fold.mt .lm { background: #0d0d0d; }
+  .mr { display: flex; align-items: center; gap: 10px; flex: 1; font-size: .85rem; }
+  .mr span { color: var(--sub); font-size: .78rem; flex: 1; }
+  .mr i { font-style: normal; }
+  .fld select { display: block; width: 100%; margin-top: 3px; padding: 8px 6px; border: 0; background: #0a0a0a; color: var(--text); font: inherit; font-size: .8rem; box-shadow: inset 0 0 0 1px var(--line); }
+  .lm.nx { box-shadow: inset 3px 0 0 var(--gold); }
+  .stp { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-top: 10px; font-size: .7rem; font-weight: 900; color: #000; background: var(--gold); border-radius: 50%; }
+  /* live matches (admin) */
+  .lm { margin-top: 8px; padding: 10px 12px; background: var(--card2); clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .lm .hd2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .lm .hd2 b { font-size: .92rem; }
+  .lm .st2 { font-size: .74rem; color: var(--sub); margin-top: 3px; }
+  .lm .chips { padding-top: 8px; }
+  .lm .chip { padding: 5px 10px; font-size: .74rem; }
+  .lm .btn { margin-top: 8px; padding: 10px; }
+  .lm.live { box-shadow: inset 3px 0 0 var(--bad); }
+  .lm.end { box-shadow: inset 3px 0 0 var(--gold); }
+  .lm.ok { opacity: .75; }
+  .pill { font-size: .7rem; font-weight: 900; padding: 2px 8px; white-space: nowrap; background: rgba(255, 77, 77, .18); color: var(--bad); }
+  .pill.g { background: rgba(242, 169, 0, .2); color: var(--gold); }
+  .pill.ok { background: rgba(61, 220, 132, .18); color: var(--ok); }
+  .toast { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); z-index: 30; padding: 8px 18px; background: var(--gold); color: #000; font-weight: 800; font-size: .85rem; max-width: 90vw;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+  .toast.err { background: var(--bad); color: #fff; }
+
+  /* bottom: action + nav */
+  .bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; padding: 0 10px calc(8px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, #000 32%); }
+  .bottom .act { max-width: 620px; margin: 0 auto 8px; }
+  .bottom .act .btn { margin: 0; animation: breathe 2.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { filter: drop-shadow(0 0 10px rgba(242, 169, 0, .6)); } }
+  nav { position: relative; max-width: 620px; margin: 0 auto; display: flex; gap: 2px; overflow-x: auto; padding: 6px 5px 5px; background: #0b0b0b; scrollbar-width: none;
+    clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%, 0 12px); box-shadow: inset 0 2px 0 var(--gold); }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { flex: 1 0 auto; min-width: 56px; border: 0; background: none; color: var(--sub); font: inherit; font-size: .68rem; padding: 4px 8px; cursor: pointer; line-height: 1.35;
+    clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+  nav button i { display: block; font-style: normal; font-size: 1.05rem; }
+  nav button.on { background: var(--gold); color: #000; font-weight: 900; }
+  .center { text-align: center; padding: 40px 10px; }
+  .spin { width: 32px; height: 32px; border: 3px solid #222; border-top-color: var(--gold); border-radius: 50%; animation: rot 1s linear infinite; margin: 0 auto 10px; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .conf { position: absolute; top: -8px; width: 7px; height: 11px; animation: fall 3.4s linear infinite; }
+  @keyframes fall { to { transform: translateY(220px) rotate(540deg); opacity: 0; } }
+</style>
+<link rel="stylesheet" href="assets/arena.css">
+<link rel="stylesheet" href="assets/pubg.css">
+<link rel="stylesheet" href="assets/intro.css">
+</head>
+<body>
+<canvas id="arena-particles" aria-hidden="true"></canvas>
+<header id="hdr" hidden><div class="hd"><div class="cup"><img src="assets/3d/big/parachute.webp" alt=""></div><div style="min-width:0"><h1 id="tn"></h1><div class="st" id="ts"></div></div><button id="motion-toggle" class="motion-toggle" type="button" aria-label="توقف افکت‌ها" title="توقف افکت‌ها"><img src="assets/icons/player-pause.svg" alt=""></button></div></header>
+<div class="wrap" id="app"><div class="center"><div class="spin"></div><span class="muted">در حال بارگذاری…</span></div></div>
+<div id="sheet"></div>
+<div class="bottom" id="bottom" hidden><div class="act" id="act"></div><nav id="nav"></nav></div>
+<script src="assets/fx3d.js"></script>
+<script src="assets/arena.js"></script>
+<script src="assets/intro.js"></script>
+<script>
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#000000'); tg.setBackgroundColor('#000000'); tg.setBottomBarColor && tg.setBottomBarColor('#000000'); } catch (e) {} }
+const Q = new URLSearchParams(location.search);
+const tid = Number(Q.get('t')) || 0;
+const fa = (n) => String(n); // numbers stay English (0-9) everywhere
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const d = (i) => `style="animation-delay:${Math.min(i, 30) * 35}ms"`;
+let D = null, lastRaw = '', page = 'home', sel = {}, openTeam = null, openMatch = 0, A = null, roadSel = null, accOpen = 'rules';
+
+// ---------- time (the bot's clock) and the Jalali calendar ----------
+function jalali(gy, gm, gd) {
+  const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334], gy2 = gm > 2 ? gy + 1 : gy;
+  let days = 355666 + 365 * gy + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) + gd + gdm[gm - 1];
+  let jy = -1595 + 33 * Math.floor(days / 12053); days %= 12053; jy += 4 * Math.floor(days / 1461); days %= 1461;
+  if (days > 365) { jy += Math.floor((days - 1) / 365); days = (days - 1) % 365; }
+  return days < 186 ? [jy, 1 + Math.floor(days / 31), 1 + (days % 31)] : [jy, 7 + Math.floor((days - 186) / 30), 1 + ((days - 186) % 30)];
+}
+const JM = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+const WD = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
+const tz = () => (D && D.tz != null ? D.tz : 210) * 60;
+const nowTs = () => (D ? D.now + Math.floor((Date.now() - D._got) / 1000) : Math.floor(Date.now() / 1000));
+const local = (ts) => new Date((ts + tz()) * 1000);
+const dayNo = (ts) => Math.floor((ts + tz()) / 86400);
+const hm = (ts) => { const x = local(ts); return fa(String(x.getUTCHours()).padStart(2, '0') + ':' + String(x.getUTCMinutes()).padStart(2, '0')); };
+function dayLabel(ts) {
+  const dd = dayNo(ts) - dayNo(nowTs());
+  const x = local(ts), [, m, day] = jalali(x.getUTCFullYear(), x.getUTCMonth() + 1, x.getUTCDate());
+  return (dd === 0 ? 'امروز · ' : dd === 1 ? 'فردا · ' : '') + `${WD[x.getUTCDay()]} ${fa(day)} ${JM[m - 1]}`;
+}
+const when = (ts) => `${dayLabel(ts)} · ساعت ${hm(ts)}`;
+
+// ---------- data ----------
+function call(name, input, cb) {
+  if (tg && tg.Serverless) return tg.Serverless.call(name, input, cb);
+  if (window.__api) return window.__api(name, input, cb);
+  cb({ message: 'این صفحه رو از داخل ربات تلگرام باز کن.' });
+}
+function load(first) {
+  call('tournament', { t: tid }, (err, res) => {
+    if (err) return first && fail(err.message || 'خطا در دریافت اطلاعات');
+    const raw = JSON.stringify({ ...res, now: 0 }), same = raw === lastRaw;
+    lastRaw = raw;
+    res.teams = Object.fromEntries((res.teams || []).map((x) => [x.id, x]));
+    res._got = Date.now();
+    D = res;
+    if (first) {
+      document.getElementById('hdr').hidden = false;
+      document.getElementById('bottom').hidden = false;
+      if (Q.get('admin') && D.staff) page = 'admin';
+      else if (D.me) page = 'home';
+    }
+    if (!same) render(first);
+    if (first) Intro.maybe(); // the first visit on this device: the animated guide
+  });
+}
+function fail(msg) { document.getElementById('app').innerHTML = `<div class="center"><div style="font-size:2.4rem">🏆</div><p>${esc(msg)}</p></div>`; }
+const T = (id) => (D.teams[id] || { name: '—', members: [] });
+const stageOf = (k) => D.stages.find((s) => s.key === k);
+const gname = (s, g) => (s.key === 'FINAL' ? 'لابی فینال' : 'گروه ' + g);
+const live = () => D.stages.find((s) => s.state === 'live') || (D.t.status === 'DONE' ? D.stages[D.stages.length - 1] : null);
+const myTeam = () => (D.me ? D.teams[D.me.team] : null);
+function toast(msg, err) {
+  const el = document.createElement('div'); el.className = 'toast' + (err ? ' err' : ''); el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 2600);
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(err ? 'error' : 'success');
+}
+
+// ---------- 🏠 home: hero, roadmap, my team, next matches, rules ----------
+function roadmap() {
+  const S = D.stages;
+  const nodes = [{ k: 'REG', i: '📝', l: 'ثبت‌نام', st: D.t.status === 'REG' ? 'live' : 'done' },
+    ...S.map((s) => ({ k: s.key, i: s.key === 'FINAL' ? '👑' : s.key === 'SEMI_FINAL' ? '🔥' : '🎮', l: s.key === 'FINAL' ? 'فینال' : s.label.replace(/\s*\(.*\)/, ''), st: s.state })),
+    { k: 'CUP', i: '🏆', l: 'قهرمان', st: D.t.status === 'DONE' ? 'done' : 'wait' }];
+  let cur = nodes.findIndex((n) => n.st === 'live');
+  if (cur < 0) cur = D.t.status === 'DONE' ? nodes.length - 1 : 0;
+  const pct = nodes.length > 1 ? (cur / (nodes.length - 1)) * 100 : 0;
+  if (!roadSel) roadSel = nodes[cur].k;
+  const html = `<div class="road">
+      <div class="track"></div><div class="fill" id="fill" data-w="calc((100% - 44px) * ${pct / 100})"></div>
+      ${pct > 0 ? `<div class="laser" style="--to:calc(22px + (100% - 44px) * ${pct / 100})"></div>` : ''}
+      <div class="steps">${nodes.map((n) => `<div class="step ${n.st}${n.k === roadSel ? ' sel' : ''}" onclick="roadSel='${n.k}';render()"><div class="c"><span>${n.i}</span></div><span>${esc(n.l)}</span></div>`).join('')}</div>
+    </div>${roadDetail(roadSel)}`;
+  return html;
+}
+function roadDetail(k) {
+  if (k === 'REG') {
+    const n = D.order.length, done = D.order.filter((id) => !T(id).pending).length;
+    return `<div class="detail"><b>📝 ثبت‌نام</b> · <span class="muted">${D.t.status === 'REG' ? (D.t.regOpen ? 'بازه' : 'بسته شد') : 'تموم شد'}</span>
+      <div style="margin-top:6px">${fa(done)} تیم کامل${n > done ? ` · ${fa(n - done)} تیم در حال تکمیل` : ''} · ظرفیت ${fa(D.t.max)} تیم</div>
+      ${D.deadline && D.t.status === 'REG' ? `<div class="warn">🚨 مهلت تکمیل تیم‌ها (۴ نفر): <b>${when(D.deadline)}</b></div>` : ''}</div>`;
+  }
+  if (k === 'CUP') {
+    const conf = D.champion ? Array.from({ length: 16 }, (_, i) => `<i class="conf" style="right:${(i * 37) % 100}%;background:${['#F2A900', '#FFD700', '#fff', '#3ddc84'][i % 4]};animation-delay:${(i % 6) * .5}s"></i>`).join('') : '';
+    return `<div class="detail" style="text-align:center;position:relative;overflow:hidden">${conf}<div style="font-size:2.2rem">🏆</div>${D.champion ? `<b class="gold" style="font-size:1.1rem">${esc(T(D.champion).name)}</b><div class="muted">قهرمان تورنمنت</div>` : '<span class="muted">قهرمان بعد از فینال مشخص میشه</span>'}</div>`;
+  }
+  const s = stageOf(k);
+  if (!s) return '';
+  return `<div class="detail"><b>${esc(s.label)}</b> · <span class="muted">${s.groups.length > 1 ? fa(s.groups.length) + ' گروه' : 'یک لابی'} · ${fa(s.matches)} مچ${s.adv ? ` · ${fa(s.adv)} تیم اول هر گروه صعود` : ''}</span>
+    <div class="gr" style="grid-template-columns:repeat(${s.groups.length},1fr)">${s.groups.map((g) => {
+      const st = g.done ? 'done' : s.state === 'live' && g.drawn ? 'live' : '';
+      return `<div class="g ${st}" onclick="sel.table='${s.key}:${g.name}';go('table')"><b>${s.key === 'FINAL' ? '👑' : esc(g.name)}</b>
+        <small>${g.drawn ? fa(g.rows.length) + ' تیم' : 'تا ' + fa(s.lobby) + ' تیم'} · مچ ${fa(g.played)}/${fa(s.matches)}</small><div class="bar"><i style="--w:${(g.played / s.matches) * 100}%"></i></div></div>`;
+    }).join('')}</div></div>`;
+}
+function acc(key, title, body) {
+  return `<div class="acc${accOpen === key ? ' open' : ''}" id="acc_${key}"><button onclick="toggleAcc('${key}')">${title}<i>▼</i></button><div class="body">${body}</div></div>`;
+}
+function toggleAcc(key) {
+  accOpen = accOpen === key ? null : key;
+  render();
+  if (accOpen) reveal('acc_' + key);
+}
+/** after a panel opens (and the one above it closed), bring it into view */
+function reveal(id) { requestAnimationFrame(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
+function openMc(i) { openMatch = openMatch === i ? -1 : i; render(); if (openMatch >= 0) reveal('mc_' + i); }
+function upcoming(limit, onlyMine) {
+  const mt = myTeam();
+  let list = (D.schedule || []).filter((x) => !x.done && x.at > nowTs() - 3600);
+  if (onlyMine && mt) list = list.filter((x) => x.stage === mt.stage && x.group === mt.group);
+  return list.slice(0, limit);
+}
+function slotRow(x, i) {
+  const s = stageOf(x.stage), mt = myTeam(), mine = mt && mt.stage === x.stage && mt.group === x.group;
+  const soon = x.at - nowTs() < 3600 && x.at > nowTs() - 1800;
+  return `<div class="li slot in${mine ? ' mine' : ''}${x.done ? ' done' : ''}" ${d(i)}><div class="ic">${hm(x.at)}</div><div class="tx"><b>${esc(s ? gname(s, x.group) : x.group)} · مچ ${fa(x.no)}</b><span>${esc(s ? s.label : '')}${mine ? ' · ⭐ تیم تو' : ''}</span></div>
+    <div class="rt">${x.done ? '<span class="ok">✅ انجام شد</span>' : soon ? '<span class="gold">🔴 به‌زودی</span>' : ''}</div></div>`;
+}
+// the drop: a plane crosses the map on its flight path, an airdrop crate comes down on its parachute
+const SCENE = `<div class="hero-art"><img src="assets/images/battleground.webp" alt="کاراکتر کلاه‌خوددار با پس‌زمینه میدان نبرد" fetchpriority="high"><span class="art-credit">DEVIL / BATTLEGROUNDS</span></div>`;
+
+function home() {
+  const t = D.t, S = D.stages, n = D.order.filter((id) => !T(id).pending).length, P = D.points;
+  const mt = myTeam(), next = upcoming(3, false);
+  return `<div class="card glow hero in">${SCENE}<div class="hero-copy"><div class="tagline">BATTLE ROYALE TOURNAMENT</div><h2>${esc(t.name)}</h2><span class="badge">${esc(t.label)}</span><p class="hero-description">${esc(t.desc || "")}</p><div class="hero-cta"><button class="btn" onclick="go('table')">جدول رقابت</button><button class="btn ghost" onclick="go('sched')">برنامه مچ‌ها</button></div></div>
+      <div class="stats"><div class="stat"><b data-c="${n}">۰</b><span>تیم</span></div><div class="stat"><b data-c="${n * 4}">۰</b><span>بازیکن</span></div><div class="stat"><b data-c="${S.reduce((a, s) => a + s.matches, 0)}">۰</b><span>مچ تا قهرمانی</span></div></div></div>
+    <div class="card glow in" ${d(1)}><div class="ttl">🗺 مسیر تورنمنت <small>ROADMAP</small></div>${roadmap()}
+      <button class="btn ghost intro-again" onclick="Intro.open()">🎬 تماشای راهنمای تورنمنت</button></div>
+    ${mt ? `<div class="card in" ${d(2)} onclick="go('mine')" style="cursor:pointer"><div class="ttl">⭐ تیم من <small>MY TEAM</small></div>
+      <div class="li mine" style="margin:0"><div class="ic">${mt.slot ? fa(mt.slot) : '⭐'}</div><div class="tx"><b>${esc(mt.name)}</b><span>${mt.pending ? '⏳ در حال تکمیل' : esc(statusOf(mt))}</span></div><div class="rt">⭐ ${fa(mt.pts)} · 💀 ${fa(mt.kills)}</div></div></div>` : ''}
+    ${next.length ? `<div class="card in" ${d(3)}><div class="ttl">🗓 مچ‌های پیش رو <small>NEXT</small></div>${next.map((x, i) => `<div class="day" style="margin-top:${i ? 8 : 0}px">${dayLabel(x.at)}</div>${slotRow(x, i)}`).join('')}</div>` : ''}
+    ${acc('rules', '📜 قوانین ثبت‌نام و مسابقه', `<ol class="ol">
+      <li>هر تیم <b>۴ نفره</b>‌ست: لیدر + ۳ بازیکن. لیدر اسم تیم و یه <b>تگ تیم</b> (مثلا MK) انتخاب می‌کنه.</li>
+      <li>اسم داخل بازی هر ۴ نفر باید تگ تیم رو داشته باشه و دقیقاً همون اسم بازی باشه؛ آیدی عددی پابجی هم ثبت میشه.</li>
+      <li>لیدر یه لینک دعوت می‌گیره؛ هر ۳ هم‌تیمی باید با همون لینک ثبت‌نام کنن و عضو ربات بشن.</li>
+      <li>هر تیم فقط توی اسلات خودش وارد روم میشه؛ آیدی و رمز روم محرمانه‌ست.</li>
+      <li>هک، تیم‌کشی و همکاری با تیم دیگه = حذف از تورنمنت. تصمیم نهایی با ادمینه.</li></ol>
+      <div class="warn">🚨 <b>مهلت تکمیل تیم: ${D.deadline ? when(D.deadline) : 'چند روز قبل از اولین مچ (به‌زودی اعلام میشه)'}.</b> تیمی که تا اون موقع ۴ نفرش ثبت‌نام نکرده باشن از تورنمنت حذف میشه و جاش به تیم دیگه داده میشه. تیمی که بعد از مهلت ثبت‌نام کنه فقط ۱ ساعت وقت داره.</div>`)}
+    ${acc('stages', '🎯 مرحله‌ها', S.map((s) => `<div style="margin-bottom:6px"><b class="gold">${esc(s.label)}:</b> ${s.groups.length > 1 ? `${fa(s.groups.length)} گروه، هر گروه تا ${fa(s.lobby)} تیم` : `یک لابی تا ${fa(s.lobby)} تیم`}، ${fa(s.matches)} مچ پشت سر هم. ${s.adv ? `${fa(s.adv)} تیم اول هر گروه صعود می‌کنن.` : 'جمع امتیازها قهرمان رو مشخص می‌کنه.'}</div>`).join(''))}
+    ${acc('pts', '📊 امتیازدهی (PMGC)', `هر <b class="gold">کیل = ۱ امتیاز</b> + امتیاز رتبه‌ی تیم توی همون مچ:
+      <div class="pts">${['🍗 رتبه‌ی ۱', 'رتبه‌ی ۲', 'رتبه‌ی ۳', 'رتبه‌ی ۴', 'رتبه‌ی ۵', 'رتبه‌ی ۶', 'رتبه‌ی ۷', 'رتبه‌ی ۸', 'رتبه‌ی ۹ به بعد'].map((l, i) => `<div class="${i < 3 ? 'top' : ''}"><b>${fa(P[i])}</b>${l}</div>`).join('')}</div>
+      <div class="ex">مثال: رتبه‌ی ۲ با ۸ کیل = <b class="gold">۶ + ۸ = ۱۴ امتیاز</b>. امتیاز همه‌ی مچ‌های یه مرحله جمع میشه.</div>`)}
+    ${acc('tie', '⚖️ اگه امتیازها مساوی بشه', '<ol class="ol"><li>کیل بیشتر توی اون مرحله</li><li>چیکن دینر (رتبه‌ی ۱) بیشتر</li><li>رتبه‌ی بهتر توی آخرین مچ</li></ol>')}
+    ${acc('res', '🛡 نتیجه‌ها چطوری ثبت میشن؟', 'بعد از هر مچ، سیستم هوشمند ربات نتیجه‌ی کامل مسابقه رو تجزیه و تحلیل می‌کنه (رتبه‌ی هر تیم و کیل هر بازیکن)، امتیازها رو با فرمول رسمی حساب می‌کنه و برای ادمین می‌فرسته. بعد از <b>تایید ادمین</b>، تیم‌ها رتبه‌بندی میشن و نتیجه توی جدول، همین صفحه و کانال رسمی تورنمنت قرار می‌گیره. هیچ امتیازی بدون تایید ادمین ثبت نمیشه.')}`;
+}
+function statusOf(x) {
+  if (x.pending) return '⏳ در حال تکمیل تیم';
+  if (x.stage === 'CHAMPION') return '🏆 قهرمان';
+  if (x.stage === 'ELIMINATED') return '❌ حذف شده';
+  const s = stageOf(x.stage);
+  return s ? `🎮 ${s.label}${x.group ? ' · ' + gname(s, x.group) : ''}${x.slot ? ' · اسلات ' + fa(x.slot) : ''}` : '✅ ثبت‌نام کامل';
+}
+
+// ---------- 🗓 schedule ----------
+function schedule() {
+  const list = D.schedule || [];
+  if (!list.length) return '<div class="card center in">🗓 برنامه‌ی مچ‌ها هنوز اعلام نشده.<br><span class="muted">بعد از اعلام، روز و ساعت هر مچ اینجا میاد.</span></div>';
+  let out = '', last = null;
+  list.forEach((x, i) => {
+    const dl = dayLabel(x.at);
+    if (dl !== last) { out += `<div class="day">📅 ${dl}</div>`; last = dl; }
+    out += slotRow(x, i);
+  });
+  return `<div class="card in"><div class="ttl">🗓 برنامه‌ی مسابقات <small>SCHEDULE</small></div><div class="muted" style="font-size:.8rem">هر گروه مچ‌هاش رو پشت سر هم بازی می‌کنه. یه ساعت قبل از مچ، به لیدرها پیام «آماده‌اید؟» میره.</div>${out}</div>`;
+}
+
+// ---------- 🎮 results ----------
+function results() {
+  if (!D.matches.length) return '<div class="card center in">🎮 هنوز مچی برگزار نشده.<br><span class="muted">بعد از تایید نتیجه‌ی هر مچ، آمارش اینجا میاد.</span></div>';
+  const keys = [...new Set(D.matches.map((m) => m.stage))];
+  const sk = keys.includes(sel.res) ? sel.res : keys[0]; sel.res = sk;
+  const list = D.matches.filter((m) => m.stage === sk);
+  return (keys.length > 1 ? `<div class="chips">${keys.map((k) => `<button class="chip${k === sk ? ' on' : ''}" onclick="sel.res='${k}';openMatch=0;render()">${esc(stageOf(k).label)}</button>`).join('')}</div>` : '') +
+    list.map((m, i) => {
+      const w = m.rows[0], maxK = Math.max(1, ...m.rows.map((r) => r.kills)), killers = [...m.rows].sort((a, b) => b.kills - a.kills).slice(0, 5);
+      return `<div class="mc in${i === openMatch ? ' open' : ''}" id="mc_${i}" ${d(i)}><div class="mh" onclick="openMc(${i})"><div class="num">${fa(m.no)}</div>
+        <div class="info"><b>${esc(gname(stageOf(m.stage), m.group))} · مچ ${fa(m.no)}</b><span>🗺 ${esc(m.map || '—')} · ${fa(m.rows.length)} تیم · 💀 ${fa(m.rows.reduce((a, r) => a + r.kills, 0))}</span></div><span class="arw">▼</span></div>
+        <div class="mb">${w ? `<div class="win"><div class="e">🍗</div><div><span class="wl">WINNER WINNER CHICKEN DINNER</span><b>${esc(T(w.id).name)}</b><span>💀 ${fa(w.kills)} کیل · ⭐ ${fa(w.pts)} امتیاز</span></div></div>` : ''}
+          <div class="sh">💀 بیشترین کیل تیم‌ها</div><div class="kb">${killers.map((r, j) => `<div class="r"><span class="nm">${esc(T(r.id).name)}</span><div class="tr"><i style="--w:${(r.kills / maxK) * 100}%;animation-delay:${j * 110}ms"></i></div><span class="v">${fa(r.kills)}</span></div>`).join('')}</div>
+          ${m.top.length ? `<div class="sh">🎯 بهترین بازیکن‌ها</div>${m.top.slice(0, 3).map((p, j) => `<div class="li mem${j === 0 ? ' lead' : ''}"><div class="ic">${['🥇', '🥈', '🥉'][j]}</div><div class="tx"><b><bdi>${esc(p.n)}</bdi></b><span>${esc(T(p.id).name)}</span></div><div class="rt">💀 ${fa(p.k)}</div></div>`).join('')}` : ''}
+          <div class="sh">📋 رتبه‌ها</div><div class="board">${m.rows.slice(0, 8).map((r) => `<div class="tr2${r.rank <= 3 ? ' r' + r.rank : ''}${D.me && r.id === D.me.team ? ' mine' : ''}" onclick="team(${r.id})"><span class="rk">${r.rank === 1 ? '🍗' : fa(r.rank)}</span><div class="nm"><b>${esc(T(r.id).name)}</b></div><span class="c"></span><span class="c">💀${fa(r.kills)}</span><span class="p">${fa(r.pts)}</span></div>`).join('')}</div>
+        </div></div>`;
+    }).join('');
+}
+
+// ---------- 👥 teams ----------
+const LOOT = `<div class="loot" aria-hidden="true">${['military_helmet', 'package', 'parachute', 'cooking', 'poultry_leg', 'bomb', 'key', 'trophy'].map((n) => `<img src="assets/3d/${n}.webp" alt="">`).join('')}</div>`;
+function tcard(id, i, r) {
+  const x = T(id), mine = D.me && D.me.team === id;
+  const cls = (x.stage === 'CHAMPION' ? ' mine' : r && r.q === 1 ? ' q' : r && r.q === 0 ? ' out' : '') + (mine ? ' mine' : '') + (x.pending ? ' pend' : '');
+  return `<div class="tc in${cls}" ${d(i)} onclick="team(${id})">${r ? `<span class="sl">#${fa(r.slot)}</span>` : ''}<b>${x.stage === 'CHAMPION' ? '👑 ' : mine ? '⭐ ' : ''}${esc(x.name)}</b>
+    <span>${x.pending ? '⏳ در حال تکمیل' : `💀 ${fa(x.kills)} · 🍗 ${fa(x.wwcd)} · ⭐ ${fa(x.pts)}`}</span></div>`;
+}
+function teams() {
+  const drawn = D.stages.filter((s) => s.groups.some((g) => g.drawn));
+  if (!drawn.length) {
+    return `<div class="card in"><div class="ttl">👥 تیم‌های ثبت‌نامی <small>TEAMS</small></div><div class="muted" style="font-size:.8rem">${fa(D.order.filter((id) => !T(id).pending).length)} تیم کامل از ${fa(D.t.max)} · گروه‌بندی بعد از بسته شدن ثبت‌نام</div>
+      ${D.order.length ? `<div class="tg" style="margin-top:10px">${D.order.map((id, i) => tcard(id, i)).join('')}</div>` : '<div class="drop-empty"><img src="assets/3d/big/parachute.webp" alt="">هنوز تیمی ثبت‌نام نکرده؛ اولین تیم باش!</div>'}</div>`;
+  }
+  const lv = live();
+  const st = drawn.find((s) => s.key === sel.teams) || (lv && lv.groups.some((g) => g.drawn) ? lv : drawn[drawn.length - 1]); sel.teams = st.key;
+  return (drawn.length > 1 ? `<div class="chips">${drawn.map((s) => `<button class="chip${s.key === st.key ? ' on' : ''}" onclick="sel.teams='${s.key}';render()">${esc(s.label)}</button>`).join('')}</div>` : '') +
+    st.groups.filter((g) => g.drawn).map((g, gi) => `<div class="in" ${d(gi * 2)}><div class="gt"><div class="L">${st.key === 'FINAL' ? '👑' : esc(g.name)}</div><b>${esc(gname(st, g.name))}</b><span>${fa(g.rows.length)} تیم${g.done ? ' · ✅ تموم شده' : ''}</span></div>
+      <div class="tg">${[...g.rows].sort((a, b) => a.slot - b.slot).map((r, i) => tcard(r.id, i, r)).join('')}</div></div>`).join('') +
+    '<div class="muted" style="font-size:.75rem;text-align:center;margin-top:14px">روی هر تیم بزن تا بازیکن‌ها و آمارشون رو ببینی.</div>' + LOOT;
+}
+function team(id) { openTeam = id; sheet(); }
+function members(x) {
+  return x.members.map((m, i) => `<div class="li mem in${i === 0 ? ' lead' : ''}" ${d(i)}><div class="ic">${i === 0 ? '👑' : fa(i + 1)}</div><div class="tx"><b><bdi>${esc(m.n)}</bdi></b><span>${i === 0 ? 'لیدر' : m.sub ? 'ذخیره' : 'بازیکن'}</span></div><div class="rt">💀 <b>${fa(m.k)}</b> کیل</div></div>`).join('');
+}
+function sheet() {
+  const el = document.getElementById('sheet');
+  if (openTeam == null || !D.teams[openTeam]) { el.innerHTML = ''; return; }
+  const x = T(openTeam), cls = x.stage === 'CHAMPION' ? 'y' : x.stage === 'ELIMINATED' ? 'r' : 'g';
+  el.innerHTML = `<div class="shb" onclick="openTeam=null;sheet()"></div><div class="sheet"><div class="grab"></div><h3 class="plate"><img src="assets/3d/big/military_helmet.webp" alt="">${D.me && D.me.team === openTeam ? '⭐' : ''}<span>${esc(x.name)}</span></h3>
+    <div class="tags"><span class="${cls}">${esc(statusOf(x))}</span></div>
+    <div class="sg"><div><b>${fa(x.pts)}</b>⭐ امتیاز</div><div><b>${fa(x.kills)}</b>💀 کیل</div><div><b>${fa(x.wwcd)}</b>🍗 چیکن دینر</div><div><b>${fa(x.played)}</b>🎮 مچ</div></div>
+    <div class="sh">🎮 بازیکن‌ها</div>${members(x)}<button class="btn ghost" onclick="openTeam=null;sheet()">بستن</button></div>`;
+}
+
+// ---------- 📊 table ----------
+function table() {
+  const opts = [];
+  D.stages.forEach((s) => s.groups.filter((g) => g.drawn).forEach((g) => opts.push({ s, g, id: s.key + ':' + g.name })));
+  if (!opts.length) return '<div class="card in"><div class="drop-empty"><img src="assets/3d/big/parachute.webp" alt="">📊 جدول بعد از قرعه‌کشی گروه‌ها این‌جا نشون داده میشه.</div></div>';
+  const lv = live(), mt = myTeam();
+  const pick = opts.find((o) => o.id === sel.table) || (mt && opts.find((o) => o.s.key === mt.stage && o.g.name === mt.group)) || opts.find((o) => lv && o.s.key === lv.key && !o.g.done) || opts[opts.length - 1];
+  sel.table = pick.id;
+  const { s, g } = pick;
+  let pod = '';
+  if (s.key === 'FINAL' && g.done && g.rows.length >= 3) {
+    const [a, b, c] = g.rows.map((r) => esc(T(r.id).name));
+    pod = `<div class="card glow in"><div class="ttl">🏆 سکوی قهرمانی <small>PODIUM</small></div><div class="podium">
+      <div class="pod"><b>${b}</b><div class="s" style="height:80px;background:linear-gradient(#f5f5f5,#9a9a9a);animation-delay:.3s">۲</div></div>
+      <div class="pod"><b>👑 ${a}</b><div class="s" style="height:120px;background:linear-gradient(var(--gold2),var(--gold))">۱</div></div>
+      <div class="pod"><b>${c}</b><div class="s" style="height:62px;background:linear-gradient(#e0a26a,#9c5a23);animation-delay:.6s">۳</div></div></div></div>`;
+  }
+  const rows = g.rows.map((r, i) => (s.adv && i === s.adv ? `<div class="cut"><span>خط صعود · ${fa(s.adv)} تیم اول</span></div>` : '') +
+    `<div class="tr2 in${r.q === 1 ? ' q' : r.q === 0 ? ' out' : ''}${i < 3 && r.played ? ' r' + (i + 1) : ''}${D.me && r.id === D.me.team ? ' mine' : ''}" ${d(i)} onclick="team(${r.id})"><span class="rk">${s.key === 'FINAL' && i < 3 && g.done ? ['🥇', '🥈', '🥉'][i] : fa(i + 1)}</span>
+      <div class="nm"><b>${esc(T(r.id).name)}</b><span>اسلات ${fa(r.slot)}</span></div><span class="c">${fa(r.wwcd)}</span><span class="c">${fa(r.kills)}</span><span class="p">${fa(r.pts)}</span></div>`).join('');
+  return `<div class="chips">${opts.map((o) => `<button class="chip${o.id === pick.id ? ' on' : ''}" onclick="sel.table='${o.id}';render()">${o.s.key === 'FINAL' ? '👑 فینال' : (o.s.key === 'SEMI_FINAL' ? 'نیمه‌نهایی · ' : '') + 'گروه ' + esc(o.g.name)}</button>`).join('')}</div>
+    ${pod}<div class="card in"><div class="ttl">${esc(gname(s, g.name))} · ${esc(s.label)} <small>STANDINGS</small></div>
+    <div class="muted" style="font-size:.76rem">بعد از مچ ${fa(g.played)} از ${fa(s.matches)}${g.done ? ' · نتیجه‌ی نهایی ✅' : ' · زنده'} · روی هر تیم بزن</div>
+    <div class="tbl board"><div class="tr2 head"><span>#</span><span>تیم</span><span class="c">🍗</span><span class="c">💀</span><span class="c">⭐</span></div>${rows || '<p class="center muted">هنوز مچی تایید نشده.</p>'}</div></div>`;
+}
+
+// ---------- ⭐ my team ----------
+function mine() {
+  const x = myTeam();
+  if (!x) return '<div class="card in"><div class="drop-empty"><img src="assets/3d/big/parachute.webp" alt="">⭐ تو هنوز توی تیمی ثبت نشدی.<br>لیدرت لینک دعوت داره؛ یا خودت از پست کانال تیم ثبت کن.</div></div>';
+  const next = upcoming(10, true);
+  const res = D.matches.map((m) => ({ m, r: m.rows.find((r) => r.id === D.me.team) })).filter((o) => o.r);
+  let rank = '';
+  const s = stageOf(x.stage);
+  if (s && x.group) {
+    const g = s.groups.find((y) => y.name === x.group);
+    const i = g ? g.rows.findIndex((r) => r.id === D.me.team) : -1;
+    if (i >= 0 && g.rows[i].played) rank = `<div class="li" style="margin-top:10px"><div class="ic">${fa(i + 1)}</div><div class="tx"><b>جایگاه فعلی در ${esc(gname(s, x.group))}</b><span>از ${fa(g.rows.length)} تیم</span></div><div class="rt ${s.adv ? (i < s.adv ? 'ok' : '') : ''}">${s.adv ? (i < s.adv ? '🟢 بالای خط صعود' : '🔴 زیر خط صعود') : ''}</div></div>`;
+  }
+  return `<div class="card glow in"><h3 class="plate"><img src="assets/3d/big/military_helmet.webp" alt=""><span>${esc(x.name)}</span><small class="pl-k">MY TEAM</small></h3>
+      <div class="tags"><span class="y">${esc(statusOf(x))}</span>${D.me.name ? `<span>تو: <bdi>${esc(D.me.name)}</bdi>${D.me.role === 'leader' ? ' · 👑 لیدر' : ''}</span>` : ''}</div>
+      <div class="sg"><div><b>${fa(x.pts)}</b>⭐ امتیاز</div><div><b>${fa(x.kills)}</b>💀 کیل</div><div><b>${fa(x.wwcd)}</b>🍗 چیکن دینر</div><div><b>${fa(x.played)}</b>🎮 مچ</div></div>${rank}
+      ${x.pending && D.deadline ? `<div class="warn">🚨 تیم هنوز کامل نیست. مهلت: <b>${when(D.deadline)}</b>؛ بعدش تیم ناقص حذف میشه.</div>` : ''}</div>
+    <div class="card in" ${d(1)}><div class="ttl">🎮 بازیکن‌ها <small>PLAYERS</small></div>${members(x)}</div>
+    <div class="card in" ${d(2)}><div class="ttl">🗓 مچ‌های پیش رو <small>NEXT</small></div>${next.length ? next.map((y, i) => `<div class="day" style="margin-top:${i ? 8 : 0}px">${dayLabel(y.at)}</div>${slotRow(y, i)}`).join('') : '<span class="muted">فعلاً مچی برنامه‌ریزی نشده.</span>'}</div>
+    ${res.length ? `<div class="card in" ${d(3)}><div class="ttl">📊 نتیجه‌های تیم <small>RESULTS</small></div>${res.map(({ m, r }, i) => `<div class="li in" ${d(i)}><div class="ic">${r.rank === 1 ? '🍗' : '#' + fa(r.rank)}</div><div class="tx"><b>${esc(gname(stageOf(m.stage), m.group))} · مچ ${fa(m.no)}</b><span>🗺 ${esc(m.map || '—')}</span></div><div class="rt">💀 ${fa(r.kills)} · <b class="gold">⭐ ${fa(r.pts)}</b></div></div>`).join('')}</div>` : ''}`;
+}
+
+// ---------- 🛠 admin ----------
+// One screen for a match night: the next match on top (room → start → result), every match of the
+// tournament below (tap one to set its day and time), the rest folded away.
+const isOpen = (k, dflt) => (sel.open && k in sel.open ? sel.open[k] : dflt);
+function tog(k, el) { (sel.open = sel.open || {})[k] = el.open; }
+const fold = (k, dflt, head, body, cls = '') => `<details class="fold ${cls}" ${isOpen(k, dflt) ? 'open' : ''} ontoggle="tog('${k}',this)"><summary>${head}</summary><div class="fb">${body}</div></details>`;
+const hhmm = (ts) => `${String(local(ts).getUTCHours()).padStart(2, '0')}:${String(local(ts).getUTCMinutes()).padStart(2, '0')}`;
+const gname2 = (G) => G.stage === 'FINAL' ? 'فینال' : G.stage === 'SEMI_FINAL' ? `نیمه‌نهایی ${fa(G.g)}` : `گروه ${G.g}`;
+
+function admin() {
+  if (!D.staff) return '<div class="card center">⛔️ فقط ادمین‌ها.</div>';
+  if (!A) { aget(); return '<div class="center"><div class="spin"></div></div>'; }
+  sel.map = sel.map || {};
+  const L = A.live;
+  return nextCard(L) + (L ? allCard(L) : '') + planCard() + regCard() + (L ? readyCard() : '') + teamsCard();
+}
+
+// ⏭ what to do now: the matches being played, then the next one
+function nextCard(L) {
+  if (!L) return `<div class="card glow in"><div class="ttl">⏭ مچ بعدی <small>NEXT</small></div><div class="muted" style="font-size:.85rem">هنوز برنامه‌ای ساخته نشده. پایین، «🗓 ساخت خودکار برنامه» رو باز کن؛ بعدش همه‌ی مچ‌ها این‌جا میان.</div></div>`;
+  const all = L.groups.flatMap((G) => G.matches.map((m) => ({ G, m })));
+  const live = all.filter(({ m }) => m.started && !m.done);
+  const next = all.filter(({ G, m }) => !m.started && !m.done && !G.done)
+    .sort((x, y) => (x.m.plan || 9e9) - (y.m.plan || 9e9))[0];
+  const body = [...live.map(({ G, m }) => matchCtl(G, m, true)), next ? matchCtl(next.G, next.m, true) : ''].join('');
+  const done = all.filter(({ m }) => m.done).length;
+  return `<div class="card glow in"><div class="ttl">⏭ مچ بعدی <small>${fa(done)}/${fa(L.total)} مچ</small></div>
+    ${body || '<div class="muted">🏁 همه‌ی مچ‌ها تموم شد.</div>'}
+    ${chanPick()}</div>`;
+}
+function chanPick() {
+  if (sel.chan == null) sel.chan = A.chan != null && (A.chan === '0' || A.chans.some((c) => c.id === A.chan)) ? A.chan : (A.chans[0]?.id || '0');
+  if (!A.chans.length) return '<div class="muted" style="font-size:.75rem;margin-top:8px">📢 کانالی به ربات وصل نیست؛ پست شروع مچ نمیره.</div>';
+  const cur = A.chans.find((c) => c.id === String(sel.chan));
+  return fold('chan', false, `📢 پست «مچ شروع شد»: <b>${cur ? esc(cur.title) : 'بدون پست'}</b>`,
+    `<div class="chips" style="padding-top:2px">${[...A.chans.map((c) => [c.id, '📢 ' + c.title]), ['0', '🔕 بدون پست']]
+      .map(([id, tx]) => `<button class="chip${String(sel.chan) === id ? ' on' : ''}" onclick="sel.chan='${id}';render()">${esc(tx)}</button>`).join('')}</div>`, 'mini');
+}
+
+// one match's controls: 🔑 room → ▶️ start → 📸 result
+function matchCtl(G, m, big) {
+  const key = `${G.g}_${m.no}`, title = `${gname2(G)} · مچ ${fa(m.no)}`;
+  const when2 = m.plan ? `⏰ ${dayLabel(m.plan)} · ${hm(m.plan)}` : '⏰ ساعت تعیین نشده';
+  if (m.done) return `<div class="lm ok"><div class="hd2"><b>${title}${m.map ? ' · ' + esc(m.map) : ''}</b><span class="pill ok">✅ ثبت شد</span></div>${m.top ? `<div class="st2">🍗 <bdi>${esc(m.top.n)}</bdi> · ${fa(m.top.k)} کیل</div>` : ''}</div>`;
+  if (!G.drawn) return `<div class="lm"><div class="hd2"><b>${title}</b><span class="pill g">منتظر قرعه</span></div><div class="st2">${when2}${G.from ? ` · ۱۰ تیم اول ${esc(G.from)}` : ''}</div></div>`;
+  if (m.started) {
+    const over = m.ends <= nowTs(), read = m.shots || m.drafted;
+    return `<div class="lm ${over ? 'end' : 'live'}"><div class="hd2"><b>${title} · ${esc(m.map || '')}</b><span class="pill${over ? ' g' : ''}">${over ? '⏰ تموم شد؟' : '🔴 در حال بازی'}</span></div>
+      <div class="st2">▶️ ${hm(m.started)} · پایان حدودی ${hm(m.ends)} · <span data-end="${m.ends}">${leftTxt(m.ends)}</span></div>
+      ${read ? `<div class="st2 gold">📸 ${fa(m.shots)} عکس خونده شده؛ توی ربات «👁 پیش‌نمایش و تایید» رو بزن.</div>` : ''}
+      ${roomBox(G, m)}
+      <button class="btn${over || read ? '' : ' ghost'}" onclick="sendRes(${m.id})">📸 ${read ? 'ادامه‌ی ارسال نتیجه' : 'ارسال نتیجه'}</button></div>`;
+  }
+  const prev = G.matches[m.no - 2];
+  if (m.no > 1 && !(prev.started || prev.done)) return `<div class="lm"><div class="hd2"><b>${title}</b></div><div class="st2">${when2} · بعد از شروع مچ ${fa(m.no - 1)}</div></div>`;
+  const map = sel.map[key] || 'Erangel';
+  const soon = m.plan ? Math.round((m.plan - nowTs()) / 60) : null;
+  return `<div class="lm${big ? ' nx' : ''}"><div class="hd2"><b>${title}</b>${soon != null && soon > 0 && soon < 24 * 60 ? `<span class="pill g">${soon < 60 ? fa(soon) + ' دقیقه دیگه' : fa(Math.floor(soon / 60)) + ' ساعت دیگه'}</span>` : ''}</div>
+    <div class="st2">${when2}${G.lobby ? ` · ${esc(G.stageLabel)}` : ''}</div>
+    <div class="stp">۱</div>${roomBox(G, m)}
+    <div class="stp">۲</div><div class="chips">${A.live.maps.map((x) => `<button class="chip${x.n === map ? ' on' : ''}" onclick="sel.map['${key}']='${x.n}';render()">${x.n} <small>${fa(x.min)}′</small></button>`).join('')}</div>
+    <button class="btn" onclick="startM('${G.stage}','${esc(G.g)}',${m.no})">▶️ شروع مچ · ${map}</button></div>`;
+}
+
+// 🗓 every match: tap one to set its day and time (and run it)
+function allCard(L) {
+  const days = Array.from({ length: 60 }, (_, i) => nowTs() + (i - 7) * 86400);
+  const iso = (ts) => { const x = local(ts); return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}-${String(x.getUTCDate()).padStart(2, '0')}`; };
+  const body = L.groups.map((G) => {
+    const head = `<div class="day">${G.done ? '✅' : G.drawn ? '🎮' : '⏳'} ${gname2(G)}${G.from ? ` <small class="muted">(۱۰ تیم اول ${esc(G.from)})</small>` : ''}</div>`;
+    return head + G.matches.map((m) => {
+      const k = `m_${G.g}_${m.no}`, cur = m.plan ? iso(m.plan) : iso(nowTs());
+      const st = m.done ? '✅' : m.started ? '🔴' : m.room ? '🔑' : '';
+      const sum = `<span class="mr"><b>مچ ${fa(m.no)}</b><span>${m.plan ? `${dayLabel(m.plan).replace(' · ', ' ')} · ${hm(m.plan)}` : 'بدون ساعت'}</span><i>${st}</i></span>`;
+      const edit = m.done || m.started ? '' : `<div class="row2" style="grid-template-columns:1.6fr 1fr"><label class="fld">روز<select id="d_${k}">${days.map((ts) => `<option value="${iso(ts)}"${iso(ts) === cur ? ' selected' : ''}>${dayLabel(ts).replace(' · ', ' ')}</option>`).join('')}</select></label>
+        <label class="fld">ساعت<input id="h_${k}" inputmode="numeric" value="${m.plan ? hhmm(m.plan) : '20:30'}"></label></div>
+        <button class="btn ghost sm" style="margin-top:8px" onclick="saveTime('${G.stage}','${esc(G.g)}',${m.no},'${k}')">💾 ذخیره‌ی ساعت</button>`;
+      return fold(k, false, sum, edit + (G.drawn ? matchCtl(G, m) : ''), 'mt');
+    }).join('');
+  }).join('');
+  return `<div class="card in">${fold('all', false, `<span class="ttl" style="margin:0">🗓 همه‌ی مچ‌ها <small>${fa(L.total)} مچ</small></span>`, `<div class="muted" style="font-size:.78rem">روی هر مچ بزن تا روز و ساعتش رو عوض کنی.</div>${body}`)}</div>`;
+}
+function saveTime(stage, g, no, k) {
+  const day = document.getElementById('d_' + k).value, mm = en(document.getElementById('h_' + k).value).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!mm || Number(mm[1]) > 23 || Number(mm[2]) > 59) return toast('ساعت رو این‌جوری بنویس: 21:30', true);
+  const [y, mo, d2] = day.split('-').map(Number);
+  aset({ act: 'time', stage, group: g, no, at: Date.UTC(y, mo - 1, d2) / 1000 - tz() + Number(mm[1]) * 3600 + Number(mm[2]) * 60 }, '💾 ساعت ذخیره شد');
+}
+
+// 🗓 the whole schedule at once (then each match can be moved by hand)
+function planCard() {
+  const c = A.sched;
+  const days = Array.from({ length: 21 }, (_, i) => { const ts = nowTs() + i * 86400, x = local(ts); const iso = `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}-${String(x.getUTCDate()).padStart(2, '0')}`; return { iso, ts }; });
+  const day = sel.day || c.day || days[0].iso; sel.day = day;
+  return `<div class="card in">${fold('plan', !A.live, `<span class="ttl" style="margin:0">⚙️ ساخت خودکار برنامه <small>SCHEDULE</small></span>`, `
+      <div class="muted" style="font-size:.8rem">ترتیب: ${A.live ? A.live.groups.map(gname2).join(' ← ') : 'گروه‌ها به ترتیب'}. هر گروه مچ‌هاش رو پشت سر هم بازی می‌کنه؛ هر چی امشب جا نشه میره شب بعد. یه ساعت قبل از مچ‌های هر گروه به بازیکن‌ها «آماده‌اید؟» میره و ۱۰ دقیقه قبل از هر مچ به تو یادآوری میاد.${A.live ? '<br>⚠️ ساختن دوباره، ساعت‌هایی که دستی عوض کردی رو هم از نو می‌چینه.' : ''}</div>
+      <div class="sh">روز شروع</div><div class="chips" style="padding-top:2px">${days.map((x) => `<button class="chip${x.iso === day ? ' on' : ''}" onclick="sel.day='${x.iso}';render()">${dayLabel(x.ts).replace(' · ', ' ')}</button>`).join('')}</div>
+      <div class="row2"><label class="fld">شروع شب<input id="f_from" inputmode="numeric" value="${c.from}"></label><label class="fld">پایان شب<input id="f_to" inputmode="numeric" value="${c.to}"></label></div>
+      <div class="row2" style="grid-template-columns:1fr 1fr 1fr"><label class="fld">مدت هر مچ<input id="f_len" type="number" value="${c.len}"></label><label class="fld">بین دو مچ<input id="f_gap" type="number" value="${c.gap}"></label><label class="fld">بین دو گروه<input id="f_ggap" type="number" value="${c.ggap}"></label></div>
+      <div class="sh">مهلت تکمیل تیم‌ها (قبل از اولین مچ)</div><div class="chips" style="padding-top:2px">${[1, 2, 3].map((n) => `<button class="chip${n === (sel.regDays || c.regDays || 2) ? ' on' : ''}" onclick="sel.regDays=${n};render()">${fa(n)} روز قبل</button>`).join('')}</div>
+      <button class="btn" onclick="makePlan()">🗓 ساخت برنامه</button>`)}</div>`;
+}
+function regCard() {
+  const c = A.sched, pend = A.teams.filter((x) => x.pending), full = A.teams.filter((x) => !x.pending);
+  return `<div class="card in"><div class="ttl">📝 ثبت‌نام <small>${fa(full.length)}/${fa(D.t.max)}</small></div>
+      <div class="sg" style="grid-template-columns:repeat(3,1fr);margin-top:0"><div><b>${fa(full.length)}</b>تیم کامل</div><div><b>${fa(pend.length)}</b>در حال تکمیل</div><div><b>${fa(D.t.max)}</b>ظرفیت</div></div>
+      ${A.deadline ? `<div class="warn">🚨 مهلت تکمیل تیم‌ها: <b>${when(A.deadline)}</b> (${fa(c.regDays || 2)} روز قبل از اولین مچ). تیم ناقص اون موقع حذف میشه، جای خالی توی کانال اعلام میشه و تیم جدید ۱ ساعت وقت داره.</div>` : '<div class="muted" style="font-size:.8rem;margin-top:8px">مهلت تکمیل تیم‌ها بعد از ساخت برنامه تعیین میشه.</div>'}
+      ${A.status === 'REG' ? `<button class="btn ${A.regOpen ? 'red' : ''}" onclick="aset({act:'reg',open:${!A.regOpen}})">${A.regOpen ? '🔴 بستن ثبت‌نام' : '🟢 باز کردن ثبت‌نام'}</button>` : ''}</div>`;
+}
+function readyCard() {
+  const due = A.live.groups.filter((G) => G.drawn && !G.done);
+  if (!due.length) return '';
+  return `<div class="card in">${fold('ready', false, `<span class="ttl" style="margin:0">📣 آمادگی تیم‌ها <small>READY</small></span>`, `
+      ${A.open.length ? A.open.map((m) => `<div class="li"><div class="ic">${fa(m.no)}</div><div class="tx"><b>${esc(m.stage === 'FINAL' ? 'فینال' : m.stage === 'SEMI_FINAL' ? 'نیمه‌نهایی ' + m.group : 'گروه ' + m.group)} · مچ ${fa(m.no)}</b><span>${m.at ? when(m.at) : 'بدون زمان'}</span></div><div class="rt">✅ <b>${fa(m.ready)}</b> از ${fa(m.of)}</div></div>`).join('') : '<span class="muted">هنوز «آماده‌اید؟» برای مچی نرفته.</span>'}
+      <div class="sh">ارسال دستی «آماده‌اید؟»</div><div class="chips" style="padding-top:2px">${due.map((G) => `<button class="chip" onclick="aset({act:'call',stage:'${G.stage}',group:'${esc(G.g)}'})">📣 ${gname2(G)}</button>`).join('')}</div>`)}</div>`;
+}
+function teamsCard() {
+  return `<div class="card in">${fold('teams', false, `<span class="ttl" style="margin:0">👥 تیم‌ها و بازیکن‌ها <small>${fa(A.teams.length)}</small></span>`,
+      A.teams.map((x) => `<div class="li"><div class="tx"><b>${x.pending ? '⏳ ' : '✅ '}${esc(x.name)} <span class="gold" style="display:inline;font-size:.75rem">${esc(x.tag || '')}</span></b>
+        <span>${x.players.map((p) => `${p.lead ? '👑' : ''}<bdi>${esc(p.n)}</bdi> (${fa(p.id)})`).join(' · ') || '—'}</span>${x.pending && x.until ? `<span class="gold">مهلت: ${when(x.until)}</span>` : ''}</div>
+        ${A.status === 'REG' ? `<button class="btn red sm" onclick="dropTeam(${x.id},'${esc(x.name).replace(/'/g, '')}')">حذف</button>` : ''}</div>`).join('') || '<span class="muted">هنوز تیمی نیست.</span>')}</div>`;
+}
+
+// 🔑 the room's id and password: sent once, "send again" opens the fields again
+function roomBox(G, m) {
+  const key = `${G.g}_${m.no}`;
+  sel.roomEdit = sel.roomEdit || {};
+  if (m.room && !sel.roomEdit[key]) {
+    return `<div class="st2" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px"><span>🔑 روم فرستاده شد${m.room !== '✓' ? ` · <bdi>${esc(m.room)}</bdi>` : ''}</span>
+      <button class="btn ghost sm" onclick="sel.roomEdit['${key}']=1;render()">ارسال دوباره</button></div>`;
+  }
+  return `<div class="row2"><label class="fld">🆔 آیدی روم<input id="ri_${key}" inputmode="numeric" placeholder="1234567"></label><label class="fld">🔒 رمز<input id="rp_${key}" inputmode="numeric" placeholder="8899"></label></div>
+    <button class="btn ghost" onclick="sendRoom('${G.stage}','${esc(G.g)}',${m.no})">🔑 ارسال آیدی و رمز روم</button>`;
+}
+function sendRoom(stage, g, no) {
+  const key = `${g}_${no}`, id = en(document.getElementById('ri_' + key).value).trim(), pass = en(document.getElementById('rp_' + key).value).trim();
+  if (!id || !pass) return toast('آیدی و رمز روم رو بنویس', true);
+  const go2 = () => call('tadmin', { t: D.t.id, act: 'room', stage, group: g, no, id, pass }, (e, r) => {
+    if (e) return toast(e.message || 'خطا', true);
+    A = r; delete sel.roomEdit[key]; render(); toast(r.note || '🔑 فرستاده شد');
+  });
+  const q = `آیدی ${id} و رمز ${pass} برای همه‌ی بازیکن‌های ${stage === 'FINAL' ? 'فینال' : 'گروه ' + g} بره؟`;
+  if (tg && tg.showConfirm) tg.showConfirm(q, (yes) => yes && go2()); else if (confirm(q)) go2();
+}
+function leftTxt(end) {
+  const m = Math.ceil((end - nowTs()) / 60);
+  return m > 0 ? `⏳ ${fa(m)} دقیقه مونده` : '⏰ وقت ارسال نتیجه‌ست';
+}
+setInterval(() => document.querySelectorAll('[data-end]').forEach((x) => { x.textContent = leftTxt(Number(x.dataset.end)); }), 15000);
+function startM(stage, g, no) {
+  const map = sel.map[`${g}_${no}`] || 'Erangel', ch = A.chans.find((c) => c.id === String(sel.chan));
+  const go2 = () => aset({ act: 'start', stage, group: g, no, map, chan: sel.chan }, '🔴 مچ شروع شد');
+  const q = `مچ ${no} ${stage === 'FINAL' ? 'فینال' : 'گروه ' + g} با نقشه‌ی ${map} شروع بشه؟` + (ch ? `\nپست «مچ شروع شد» توی «${ch.title}» میره.` : '');
+  if (tg && tg.showConfirm) tg.showConfirm(q, (yes) => yes && go2()); else if (confirm(q)) go2();
+}
+function sendRes(id) {
+  call('tadmin', { t: D.t.id, act: 'result', id }, (e, r) => {
+    if (e) return toast(e.message || 'خطا', true);
+    A = r; render();
+    toast('📸 ربات منتظر عکس‌هاست؛ توی چت ربات بفرستشون');
+    setTimeout(() => { if (tg && tg.close) tg.close(); }, 1400);
+  });
+}
+function aget() { call('tadmin', { t: D.t.id, act: 'get' }, (e, r) => { if (e) return toast(e.message, true); A = r; render(); }); }
+function aset(inp, ok) {
+  call('tadmin', { t: D.t.id, ...inp }, (e, r) => { if (e) return toast(e.message || 'خطا', true); A = r; toast(ok || '✅ انجام شد'); load(false); render(); });
+}
+function makePlan() {
+  const v = (id) => en(document.getElementById(id).value).trim();
+  let to = v('f_to'); if (to === '00:00' || to === '0:00') to = '24:00';
+  if (!/^\d{1,2}:\d{2}$/.test(v('f_from')) || !/^\d{1,2}:\d{2}$/.test(to)) return toast('ساعت رو این‌جوری بنویس: 20:30', true);
+  aset({ act: 'sched', day: sel.day, from: v('f_from'), to, len: Number(v('f_len')), gap: Number(v('f_gap')), ggap: Number(v('f_ggap')), regDays: sel.regDays || A.sched.regDays || 2 }, '✅ برنامه ساخته شد');
+}
+const en = (s) => String(s).replace(/[۰-۹]/g, (x) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(x)).replace(/[٠-٩]/g, (x) => '٠١٢٣٤٥٦٧٨٩'.indexOf(x));
+function moveSlot(id, at, val) {
+  const mm = en(val).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!mm || Number(mm[1]) > 23 || Number(mm[2]) > 59) return toast('ساعت رو این‌جوری بنویس: 21:30', true);
+  const h = Number(mm[1]), m = Number(mm[2]);
+  const x = local(at), base = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()) / 1000 - tz();
+  aset({ act: 'slot', id, at: base + h * 3600 + m * 60 }, '✅ ساعت ذخیره شد');
+}
+function dropTeam(id, name) {
+  const go2 = () => aset({ act: 'drop', team: id }, '🗑 تیم حذف شد');
+  if (tg && tg.showConfirm) tg.showConfirm(`تیم «${name}» حذف بشه؟ به بازیکن‌هاش خبر داده میشه.`, (yes) => yes && go2()); else if (confirm('حذف بشه؟')) go2();
+}
+
+// ---------- shell ----------
+function tabs() {
+  const list = [['home', '🏠', 'خانه'], ['sched', '🗓', 'برنامه'], ['results', '🎮', 'نتایج'], ['teams', '👥', 'تیم‌ها'], ['table', '📊', 'جدول']];
+  if (D.me) list.splice(1, 0, ['mine', '⭐', 'تیم من']);
+  if (D.staff) list.push(['admin', '🛠', 'ادمین']);
+  return list.map(([k, i, l]) => `<button aria-label="${l}" aria-current="${k === page ? 'page' : 'false'}" class="${k === page ? 'on' : ''}" onclick="go('${k}')"><i>${window.Arena.icon(k)}</i><span>${l}</span></button>`).join('');
+}
+function action() {
+  if (page === 'admin') return '';
+  if (!D.me && D.t.status === 'REG' && D.t.regOpen && D.bot) return `<button class="btn" onclick="openBot('tr_${D.t.id}')">📝 ثبت‌نام تیم در تورنمنت</button>`;
+  if (D.me && page !== 'mine') return `<button class="btn" onclick="go('mine')">⭐ تیم من: ${esc(T(D.me.team).name)}</button>`;
+  return '';
+}
+function openBot(start) { const u = `https://t.me/${D.bot}?start=${start}`; if (tg && tg.openTelegramLink) tg.openTelegramLink(u); else location.href = u; }
+function count(fx) {
+  document.querySelectorAll('[data-c]').forEach((el) => {
+    const end = Number(el.dataset.c), t0 = performance.now();
+    if (!fx || window.Arena.reduced()) { el.textContent = fa(end); return; }
+    const step = (t) => { const p = Math.max(0, Math.min(1, (t - t0) / 1000)); el.textContent = fa(Math.round(end * (1 - Math.pow(1 - p, 3)))); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+}
+function render(fx = false) {
+  if (!D) return;
+  const app = document.getElementById('app');
+  app.classList.toggle('fx', !!fx);
+  document.getElementById('tn').textContent = D.t.name;
+  const lv = live();
+  document.getElementById('ts').innerHTML = D.t.status === 'REG' ? `<span class="dot"></span> ثبت‌نام ${D.t.regOpen ? 'بازه' : 'بسته شد'} · ${esc(D.t.label)}`
+    : D.t.status === 'DONE' ? `🏁 تموم شد · قهرمان: ${esc(T(D.champion).name)}` : `<span class="dot"></span> زنده · ${esc(lv ? lv.label : '')}`;
+  const fn = { home, mine, sched: schedule, results, teams, table, admin }[page] || home;
+  document.getElementById('app').innerHTML = fn();
+  document.getElementById('nav').innerHTML = tabs();
+  document.getElementById('act').innerHTML = action();
+  const f = document.getElementById('fill');
+  if (f) { if (fx) requestAnimationFrame(() => requestAnimationFrame(() => { f.style.width = f.dataset.w; })); else f.style.width = f.dataset.w; }
+  if (page === 'home') count(fx);
+  sheet();
+  window.Arena.enhance(page, D);
+}
+function go(p) { page = p; render(true); scrollTo({ top: 0, behavior: 'smooth' }); if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged(); }
+load(true);
+setInterval(() => { if (page !== 'admin') load(false); }, 30000);
+</script>
+</body>
+</html>

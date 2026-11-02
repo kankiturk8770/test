@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>حذف کامل پست‌های قدیمی</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #17191f);
+    --card: var(--tg-theme-secondary-bg-color, #22252d);
+    --text: var(--tg-theme-text-color, #eef0f4);
+    --hint: var(--tg-theme-hint-color, #8d93a0);
+    --link: var(--tg-theme-link-color, #5fa8ff);
+    --red: #e5484d; --green: #30a46c; --blue: #3e8ef7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.7 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 19px; margin: 4px 0 2px; }
+  .sub { color: var(--hint); font-size: 13px; margin-bottom: 14px; }
+  .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; }
+  .hidden { display: none !important; }
+  label { display: block; font-size: 13px; color: var(--hint); margin: 8px 0 4px; }
+  input, textarea { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid #ffffff1f; background: var(--bg); color: var(--text); font: inherit; direction: ltr; text-align: left; }
+  textarea { direction: rtl; text-align: right; min-height: 70px; }
+  button { width: 100%; border: 0; border-radius: 11px; padding: 12px; margin-top: 10px; font: inherit; font-weight: 600; color: #fff; background: var(--blue); }
+  button.red { background: var(--red); } button.green { background: var(--green); } button.ghost { background: transparent; color: var(--link); border: 1px solid #ffffff22; }
+  button:disabled { opacity: .55; }
+  ol { margin: 6px 0; padding-inline-start: 20px; } li { margin: 3px 0; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .row input[type=checkbox] { width: auto; }
+  .big { font-size: 30px; font-weight: 800; }
+  .bar { height: 8px; background: #ffffff14; border-radius: 6px; overflow: hidden; margin: 8px 0; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .3s; }
+  .err { color: var(--red); font-size: 13px; margin-top: 8px; white-space: pre-wrap; }
+  .note { color: var(--hint); font-size: 12.5px; }
+  a { color: var(--link); }
+  code { direction: ltr; unicode-bidi: embed; background: #ffffff12; padding: 1px 5px; border-radius: 5px; }
+  .lock { font-size: 12.5px; color: var(--hint); border-right: 3px solid var(--green); padding-right: 8px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔐 حذف کامل پست‌های قدیمی</h1>
+  <div class="sub" id="chan">…</div>
+
+  <div class="card" id="s-err-owner" hidden></div>
+
+  <section class="card" id="s-keys">
+    <h2>۱. کلید API اکانتت</h2>
+    <div class="note">تلگرام به ربات‌ها اجازه نمیده پست‌های قدیمی‌تر از ۴۸ ساعت رو حذف کنن، ولی به خود ادمین اجازه میده. پس این صفحه یه بار با اکانت خودت وارد میشه، پست‌ها رو حذف می‌کنه و آخرش خارج میشه.</div>
+    <ol class="note">
+      <li>برو <a href="#" id="open-my">my.telegram.org</a> و با شماره‌ت وارد شو.</li>
+      <li><b>API development tools</b> رو بزن و یه اپ بساز (اسم و توضیح هر چیزی).</li>
+      <li><b>App api_id</b> و <b>App api_hash</b> رو اینجا بذار.</li>
+    </ol>
+    <label>api_id</label><input id="api-id" inputmode="numeric" placeholder="1234567">
+    <label>api_hash</label><input id="api-hash" placeholder="0123456789abcdef0123456789abcdef">
+    <div class="row"><input type="checkbox" id="remember" checked><span class="note">این دو تا رو روی همین گوشی یادت بمونه</span></div>
+    <button id="b-keys">ادامه</button>
+    <div class="err" id="e-keys"></div>
+  </section>
+
+  <section class="card hidden" id="s-phone">
+    <h2>۲. شماره‌ی اکانت ادمین کانال</h2>
+    <label>شماره با کد کشور</label><input id="phone" inputmode="tel" placeholder="+989123456789">
+    <button id="b-phone">ارسال کد</button>
+    <div class="err" id="e-phone"></div>
+  </section>
+
+  <section class="card hidden" id="s-code">
+    <h2>۳. کد ورود</h2>
+    <div class="note">تلگرام یه کد توی خود تلگرام (پیام از طرف Telegram) برات فرستاد.</div>
+    <label>کد</label><input id="code" inputmode="numeric" placeholder="12345">
+    <button id="b-code">تأیید</button>
+    <div class="err" id="e-code"></div>
+  </section>
+
+  <section class="card hidden" id="s-pass">
+    <h2>۳. رمز دو مرحله‌ای</h2>
+    <label>رمز (Two-Step Verification)</label><input id="pass" type="password">
+    <button id="b-pass">تأیید</button>
+    <div class="err" id="e-pass"></div>
+  </section>
+
+  <section class="card hidden" id="s-words">
+    <h2>۴. دنبال چی بگردم؟</h2>
+    <label>کلمه‌ها (هر خط یکی) — فارسی و انگلیسیش با هم پیدا میشه: روم = room / ROOM</label>
+    <textarea id="words"></textarea>
+    <div class="row"><input type="checkbox" id="smart"><span class="note">🧠 پست‌های روم بدون کلمه‌ی «روم» هم (ID و Pass، مپ، جایزه، ساعت…)</span></div>
+    <div class="row"><input type="checkbox" id="blanked" checked><span class="note">🗑 پست‌هایی که ربات قبلاً خالی کرده هم حذف بشن</span></div>
+    <button id="b-scan">🔎 جستجو توی کل کانال</button>
+    <div class="err" id="e-scan"></div>
+  </section>
+
+  <section class="card hidden" id="s-scan">
+    <h2>جستجو…</h2>
+    <div class="bar"><i id="scan-bar"></i></div>
+    <div class="note" id="scan-txt">…</div>
+  </section>
+
+  <section class="card hidden" id="s-confirm">
+    <h2>۵. نتیجه</h2>
+    <div class="big" id="found">0</div>
+    <div class="note">پست پیدا شد که حذف میشه.</div>
+    <div class="note" id="reasons"></div>
+    <button class="red" id="b-del">🗑 حذف همه</button>
+    <button class="ghost" id="b-cancel">نه، فقط خارج شو</button>
+  </section>
+
+  <section class="card hidden" id="s-del">
+    <h2>در حال حذف…</h2>
+    <div class="bar"><i id="del-bar"></i></div>
+    <div class="note" id="del-txt">…</div>
+  </section>
+
+  <section class="card hidden" id="s-done">
+    <h2>✅ تموم شد</h2>
+    <div class="big" id="done-n">0</div>
+    <div class="note">پست از کانال حذف شد.</div>
+    <div class="lock" id="done-lock">…</div>
+    <button class="green" id="b-close">بستن</button>
+  </section>
+
+  <div class="lock">🔒 ورود و حذف فقط روی همین گوشی انجام میشه: کد و رمزت به هیچ سروری (حتی ربات) فرستاده نمیشه و آخر کار از اکانتت خارج میشم.</div>
+</main>
+<script src="clean.js"></script>
+</body>
+</html>

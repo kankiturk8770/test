@@ -1,7 +1,8 @@
 {
-  // To host a Mini App, uncomment and set "source" to its build output folder:
-  // "static": {
-  //   "source": "dist"
-  // },
+  // The Mini App: the /timer page (index.html) and the «delete old posts with your own account»
+  // page (clean.html). Build it first: cd webapp && npm run build
+  "static": {
+    "source": "webapp/dist"
+  },
   "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json"
 }

@@ -1,0 +1,182 @@
+/* PUBG-style plates: brushed steel for players, a circuit board for teams, chrome text, rim light (orange left, blue right).
+   Textures are generated (images/plate-*.webp, images/circuit-tile.webp); the item icons (icons/pubg-*.svg) are
+   our own drawings in the game's filled style, not the game's files or logos. Loaded after arena.css. */
+body { background: #0a0d10 url('images/circuit-tile.webp') 0 0 / 600px repeat; }
+
+/* the rim light on a plate's top edge, like light catching a metal frame */
+.li.mem, .tc, h3.plate { position: relative; isolation: isolate; }
+.li.mem::before, .tc::before, h3.plate::before {
+  content: ''; position: absolute; left: 10%; right: 10%; top: -1px; height: 2px; border-radius: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #ff9a3c 25%, #fff8 50%, #59a8ff 75%, transparent); opacity: .85;
+}
+
+/* 🎮 players: a brushed-steel plate with a beveled frame */
+.li.mem {
+  border-radius: 10px; padding: 13px 13px; margin-top: 10px;
+  background: url('images/plate-steel.webp') center / cover, #2b3137;
+  border: 1px solid #737c85;
+  box-shadow: inset 0 0 0 1px #000a, inset 0 0 0 3px #4b535b55, inset 0 2px 0 3px #ffffff14, 0 5px 14px #000a;
+}
+.li.mem .ic {
+  background: linear-gradient(#5d666f, #1b2025); border: 1px solid #8c959e; border-radius: 8px; color: #fff; font-weight: 900;
+  box-shadow: inset 0 1px 0 #fff4, 0 2px 4px #0008;
+}
+.li.mem .tx b { color: #fff; font-size: 15px; font-weight: 900; letter-spacing: .2px; text-shadow: 0 1px 0 #000, 0 0 2px #000, 0 2px 8px #000; }
+.li.mem .tx span { color: #e0e5ea; text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+.li.mem .rt { background: #090c10d9; border: 1px solid #5f6871; border-radius: 7px; padding: 5px 10px; color: #dfe4e9; white-space: nowrap; box-shadow: inset 0 1px 0 #ffffff12; }
+.li.mem .rt b { color: var(--gold); font-size: 16px; font-weight: 900; }
+.li.mem.lead { border-color: #c9a24a; box-shadow: inset 0 0 0 1px #000a, inset 0 0 0 3px #b8954533, inset 0 2px 0 3px #ffffff14, 0 5px 14px #000a; }
+.li.mem.lead .ic { background: linear-gradient(#ffd96e, #b5841d); border-color: #ffe39a; color: #1b1405; }
+.li.mem.lead::before { background: linear-gradient(90deg, transparent, #ffb23c 30%, #fff3c4 50%, #ffb23c 70%, transparent); }
+
+/* 👥 teams: a circuit-board plate, chrome team name, a helmet in the corner */
+.tc {
+  border-radius: 10px; overflow: hidden;
+  /* darker behind the name (right, RTL) so it reads on the glow */
+  background: linear-gradient(270deg, #05080bcc 0%, #05080b66 55%, #05080b11 100%), url('images/plate-circuit.webp') center / cover, #10151b;
+  border: 1px solid #59636d;
+  box-shadow: inset 0 0 0 1px #000b, inset 0 0 0 3px #3b444d55, 0 5px 14px #0008;
+}
+.tc::after {
+  content: ''; position: absolute; left: 8px; bottom: 8px; width: 46px; height: 46px; pointer-events: none;
+  background: url('icons/pubg-helmet.svg') center / contain no-repeat; filter: invert(1); opacity: .08;
+}
+.tc b {
+  /* chrome, but kept bright: the darkest band is light grey so every letter stays readable */
+  background: linear-gradient(180deg, #ffffff 0%, #f0f3f6 40%, #c9d0d6 55%, #ffffff 100%); -webkit-background-clip: text; background-clip: text;
+  color: transparent; filter: drop-shadow(0 1px 0 #000) drop-shadow(0 0 1px #000) drop-shadow(0 2px 6px #000d); font-weight: 900; font-size: 15px;
+}
+.tc span { color: #e3e9ef; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+.tc .sl { background: #0a0e13d0; border: 1px solid #6a5730; border-radius: 5px; padding: 0 6px; line-height: 1.5; }
+.tc.mine { border-color: #d0a640; background: linear-gradient(270deg, #0a0804cc 0%, #0a080466 55%, #ffc23914 100%), url('images/plate-circuit.webp') center / cover, #1d1a12; }
+.tc.mine b { background-image: linear-gradient(180deg, #fffbe8 0%, #ffe08a 45%, #e0ac3c 56%, #fff1c2 100%); }
+.tc.q { border-color: #4f8f74; }
+
+/* the team sheet: the team name on a steel nameplate */
+h3.plate {
+  display: flex; align-items: center; gap: 12px; margin: 12px 0 16px; padding: 16px 18px; border-radius: 12px; font-size: 22px; font-weight: 900;
+  background: url('images/plate-steel.webp') center / cover, #2b3137; border: 1px solid #7d868f;
+  box-shadow: inset 0 0 0 1px #000a, inset 0 0 0 4px #4b535b55, inset 0 2px 0 4px #ffffff18, 0 8px 20px #000b;
+}
+h3.plate span {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f3f6 40%, #c4cbd2 55%, #ffffff 100%); -webkit-background-clip: text; background-clip: text;
+  color: transparent; filter: drop-shadow(0 1px 0 #000) drop-shadow(0 0 1px #000) drop-shadow(0 3px 6px #000d); min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+h3.plate img { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 3px 4px #000c); }
+
+h3.plate .pl-k { margin-inline-start: auto; font: 500 13px Teko, sans-serif; letter-spacing: 2px; color: #d8dee4; text-shadow: 0 1px 2px #000; }
+.card > h3.plate:first-child { margin-top: 0; }
+
+/* empty spots: an airdrop crate instead of a blank card */
+.drop-empty { text-align: center; padding: 26px 12px; color: var(--sub); font-size: 13px; }
+.drop-empty img { display: block; width: 84px; height: 84px; margin: 0 auto 10px; filter: drop-shadow(0 6px 10px #000c); animation: drop-sway 3.6s ease-in-out infinite; transform-origin: 50% 0; }
+@keyframes drop-sway { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(3px); } }
+
+/* section titles and stat boxes get a faint PUBG item behind them */
+.sg > div { position: relative; overflow: hidden; }
+.sg > div::after { content: ''; position: absolute; right: -6px; bottom: -6px; width: 42px; height: 42px; background: center / contain no-repeat; filter: invert(1); opacity: .09; pointer-events: none; }
+.sg > div:nth-child(1)::after { background-image: url('icons/pubg-crate.svg'); }
+.sg > div:nth-child(2)::after { background-image: url('icons/pubg-rifle.svg'); }
+.sg > div:nth-child(3)::after { background-image: url('icons/pubg-chicken.svg'); }
+.sg > div:nth-child(4)::after { background-image: url('icons/pubg-helmet.svg'); }
+
+/* a strip of loot under the teams list */
+.loot { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+.loot img { width: 30px; height: 30px; filter: drop-shadow(0 3px 4px #000a); animation: loot-bob 3s ease-in-out infinite; }
+.loot img:nth-child(even) { animation-delay: -1.5s; }
+@keyframes loot-bob { 50% { transform: translateY(-4px); } }
+
+@media (max-width: 600px) {
+  .li.mem { padding: 11px 10px; }
+  h3.plate { font-size: 19px; padding: 13px 14px; }
+  .tc::after { width: 38px; height: 38px; }
+}
+
+/* 📊 standings: Miramar desert camo rows, a steel header, sand-hexagon ranks, medal colours for the top 3, a hazard-stripe qualifying line */
+.board { border-radius: 10px; overflow: hidden; border: 1px solid #7a6440; box-shadow: 0 6px 18px #000a; }
+.board .tr2 {
+  position: relative; border-bottom: 1px solid #0009; min-height: 58px;
+  background: linear-gradient(270deg, #140e07e0 0%, #140e0799 45%, #140e0733 100%), url('images/camo-sand.webp') 0 0 / 900px auto, #5e4a2e;
+}
+.board .tr2:nth-child(odd) { background-position: 0 0, 300px 80px, 0 0; }
+.board .tr2 .nm b { color: #fff; text-shadow: 0 1px 2px #000, 0 0 5px #000; }
+.board .tr2 .nm span { color: #eadcc0; text-shadow: 0 1px 2px #000; }
+.board .tr2 .c { color: #fff3dc; text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+.board .tr2 .p { color: #ffd257; font-size: 18px; font-weight: 900; text-shadow: 0 0 10px #000, 0 1px 2px #000; }
+.board .tr2 .rk {
+  display: inline-grid; place-items: center; width: 32px; height: 30px; font-weight: 900; color: #fff8ea; text-shadow: 0 1px 2px #000;
+  background: linear-gradient(#a98a58, #5c4526); border: 0; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.board .tr2.head { background: url('images/plate-steel.webp') center / cover, #2b3137; color: #e9edf1; min-height: 46px; border-radius: 0; text-shadow: 0 1px 2px #000; }
+.board .tr2.head span { color: #e9edf1; }
+.board .tr2.r1 { box-shadow: inset -4px 0 0 #ffc239; background: linear-gradient(270deg, #3d2a06e8 0%, #2a1d07bb 50%, #140e0733 100%), url('images/camo-sand.webp') 0 0 / 900px auto; }
+.board .tr2.r2 { box-shadow: inset -4px 0 0 #e3e9ee; background: linear-gradient(270deg, #2b2f33e8 0%, #1c1d1dbb 50%, #140e0733 100%), url('images/camo-sand.webp') 0 40px / 900px auto; }
+.board .tr2.r3 { box-shadow: inset -4px 0 0 #d08b4a; background: linear-gradient(270deg, #3a220ce8 0%, #24160abb 50%, #140e0733 100%), url('images/camo-sand.webp') 0 80px / 900px auto; }
+.board .tr2.r1 .rk { background: linear-gradient(#ffe08a, #c9921e); color: #1d1405; text-shadow: none; }
+.board .tr2.r2 .rk { background: linear-gradient(#f4f7f9, #9aa4ad); color: #14181b; text-shadow: none; }
+.board .tr2.r3 .rk { background: linear-gradient(#f0b77e, #9c5a23); color: #1d1006; text-shadow: none; }
+.board .tr2.q:not(.r1):not(.r2):not(.r3) { box-shadow: inset -3px 0 0 #6fcf97; }
+.board .tr2.out { opacity: .62; }
+.board .tr2.mine { outline: 2px solid var(--gold); outline-offset: -2px; }
+.board .cut {
+  position: relative; padding: 0; height: 26px; display: grid; place-items: center; border: 0;
+  background: repeating-linear-gradient(-45deg, #ffc239 0 12px, #111 12px 24px);
+}
+.board .cut span { background: #120d06; color: #ffd76a; font-size: 11px; font-weight: 900; padding: 1px 12px; border-radius: 4px; letter-spacing: .3px; }
+
+/* 🎮 results: each match card is a dark game map with a grid */
+.mc {
+  border-radius: 12px; border: 1px solid #3c4a44; overflow: hidden;
+  background: linear-gradient(180deg, #070b0ab3, #070b0ae6 60%, #070b0af2), url('images/map-grid.webp') center / cover, #0d1412;
+  box-shadow: 0 6px 18px #000a;
+}
+.mc .num { background: url('images/plate-steel.webp') center / cover; color: #fff; border: 1px solid #8a939c; text-shadow: 0 1px 2px #000; }
+.mc.open { border-color: #6f6237; }
+.mc .info span { color: #c9d2cf; }
+.win { background: linear-gradient(135deg, #ffc23933, #ffc23908), url('images/plate-circuit.webp') center / cover; border-color: #a8873c; }
+.win .wl { text-shadow: 0 0 10px #ffc23966; }
+.kb .tr { background: #0006; border: 1px solid #ffffff14; }
+.kb .tr i { background: repeating-linear-gradient(-45deg, #ffc239 0 8px, #ffcf5a 8px 16px); }
+.kb .r .nm { color: #f1f4f2; }
+
+/* 🗓 schedule: each match is a boarding pass: plane, dashed flight path, the time on a steel stub */
+.li.slot {
+  position: relative; overflow: hidden; border-radius: 10px; border: 1px solid #3b4652; padding-left: 54px;
+  background: linear-gradient(270deg, #0b1016f0 0%, #0b1016d0 55%, #0b101699 100%), url('images/map-grid.webp') 30% 40% / 700px auto, #111820;
+}
+.li.slot::before { content: ''; position: absolute; left: 10px; right: 62%; top: 50%; border-top: 2px dashed #ffc23955; pointer-events: none; }
+.li.slot::after {
+  content: ''; position: absolute; left: 14px; top: 50%; width: 30px; height: 30px; margin-top: -15px; pointer-events: none;
+  background: url('3d/airplane.webp') center / contain no-repeat; filter: drop-shadow(0 2px 3px #000c); transform: scaleX(-1);
+}
+.li.slot .ic { background: url('images/plate-steel.webp') center / cover, #2b3137; border: 1px solid #8a939c; color: #fff; font-weight: 900; text-shadow: 0 1px 2px #000; width: auto; padding: 0 9px; }
+.li.slot .tx { position: relative; z-index: 1; }
+.li.slot .tx b { color: #fff; text-shadow: 0 1px 2px #000; }
+.li.slot .rt { position: relative; z-index: 1; font-size: 11px; }
+.li.slot .rt span { background: #0b1016e6; border: 1px solid #ffffff1f; border-radius: 6px; padding: 3px 8px; }
+.li.slot.mine { border-color: #b89545; box-shadow: inset -3px 0 0 var(--gold); background: linear-gradient(270deg, #1f1a0cf0 0%, #1a160bd0 55%, #0b101699 100%), url('images/map-grid.webp') 30% 40% / 700px auto; }
+.li.slot.done { opacity: .7; }
+.li.slot.done::after { background-image: url('3d/package.webp'); transform: none; }
+
+/* 🏠 home: rules and info folds with a steel header bar; "my team" strip on the gold circuit plate */
+.acc { border-radius: 12px; overflow: hidden; border-color: #4b545d; }
+.acc > button { background: url('images/plate-steel.webp') center / cover, #2b3137; color: #fff; text-shadow: 0 1px 2px #000; }
+.acc.open > button { background: url('images/plate-steel.webp') center / cover, #2b3137; box-shadow: inset 0 -2px 0 var(--gold); }
+.acc .body { background: linear-gradient(180deg, #0c0e08e0, #0c0e08f5), url('images/camo-olive.webp') 0 0 / 900px auto; padding-top: 14px; }
+.li.mine:not(.slot):not(.mem) {
+  border-radius: 10px; border: 1px solid #b89545;
+  background: linear-gradient(270deg, #0a0804cc 0%, #0a080466 60%, #ffc23914 100%), url('images/plate-circuit.webp') center / cover, #1d1a12;
+}
+
+/* 🧊 3D icons (Fluent Emoji 3D, assets/3d): inline in text, nav and titles; no tint filters on them */
+img.e3d { display: inline-block; width: auto; height: 1.3em; vertical-align: -.3em; margin: 0 .08em; filter: drop-shadow(0 2px 2px #0008); }
+.arena-icon.e3d, nav button .arena-icon.e3d, nav button.on .arena-icon.e3d { filter: drop-shadow(0 2px 3px #000a) !important; }
+nav button .arena-icon.e3d { width: 26px; height: 26px; opacity: .72; transition: transform .2s, opacity .2s; }
+nav button.on .arena-icon.e3d { opacity: 1; transform: translateY(-2px) scale(1.12); }
+.ttl img.e3d, .sh img.e3d, .acc > button img.e3d { height: 1.45em; }
+.hd .cup img { filter: drop-shadow(0 3px 4px #000c) !important; animation: loot-bob 3.4s ease-in-out infinite; }
+.arena-page-title .arena-icon.e3d { width: 30px; height: 30px; }
+.sg img.e3d { height: 1.15em; }
+.li .ic img.e3d { height: 1.6em; }
+.win .e img.e3d { height: 2.2em; }
+.tc img.e3d, .tags img.e3d, .chip img.e3d, .btn img.e3d { height: 1.25em; }
