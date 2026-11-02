@@ -101,11 +101,11 @@
   </div>
 
   <section class="card hidden" id="s-words">
-    <h2>۴. دنبال چی بگردم؟</h2>
-    <label>کلمه‌ها (هر خط یکی) — فارسی و انگلیسیش با هم پیدا میشه: روم = room / ROOM</label>
-    <textarea id="words"></textarea>
-    <div class="row"><input type="checkbox" id="smart"><span class="note">🧠 پست‌های روم بدون کلمه‌ی «روم» هم (ID و Pass، مپ، جایزه، ساعت…)</span></div>
-    <div class="row"><input type="checkbox" id="blanked" checked><span class="note">🗑 پست‌هایی که ربات قبلاً خالی کرده هم حذف بشن</span></div>
+    <h2>۴. پست‌هایی که این کلمه رو دارن پاک بشن:</h2>
+    <textarea id="words" placeholder="مثلاً: روم"></textarea>
+    <div class="note">💡 فارسی و انگلیسیش با هم پیدا میشه (روم = room). چند کلمه رو هم میشه، هر خط یکی.</div>
+    <div class="row"><input type="checkbox" id="smart"><span class="note">🎮 پست‌های مربوط به روم که خود کلمه رو ندارن هم (مثل «ID: … PASS: …»)</span></div>
+    <div class="row"><input type="checkbox" id="blanked" checked><span class="note">🗑 پست‌هایی که فقط «🗑» توشون مونده هم پاک بشن</span></div>
     <button id="b-scan">🔎 جستجو توی کل کانال</button>
     <div class="err" id="e-scan"></div>
   </section>

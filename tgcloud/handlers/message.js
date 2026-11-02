@@ -33,7 +33,7 @@ async function command(m, uid, st, cmd, arg, rest) {
   if (cmd === '/start' && /^adm_\w+$/.test(arg)) return adminJoin(uid, m.from, arg.slice(4));
   if (cmd === '/team' || cmd === '/dashboard') return P.dashboard(uid);
   if (cmd === '/admins') return adminPanel(uid);
-  if (cmd === '/clean') return C.home(uid);
+  if (cmd === '/clean') return C.action(uid, st, 'cf', null);
   if (cmd === '/start' && /^tv_\d+$/.test(arg)) return T.viewStart(uid, Number(arg.slice(3))); // the Mini App
   if (cmd === '/start' || cmd === '/menu') return welcome(uid, m.from?.first_name || '');
   if (cmd === '/tournament' || cmd === '/tn') return T.home(uid);

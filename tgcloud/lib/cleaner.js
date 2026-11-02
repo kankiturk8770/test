@@ -29,11 +29,12 @@ const U = (t, d) => B(t, d, 'primary');
 const onOff = (v) => (v ? 'روشن ✅' : 'خاموش ⛔️');
 const tog = (v, t, d) => (v ? G : R)(`${t}: ${onOff(v)}`, d);
 // the Mini App page that deletes old posts with the admin's own account (bots can't, people can)
-const FULL = (chat) => ({ text: '🔐 حذف کامل پست‌های قدیمی (با اکانت خودت)', web_app: { url: `https://app8719466331.tgcloud.ai/clean?c=${chat}` }, style: 'danger' });
+const FULL = (chat, word = '', text = '🔐 حذف کامل پست‌های قدیمی (با اکانت خودت)') =>
+  ({ text, web_app: { url: `https://app8719466331.tgcloud.ai/clean?c=${chat}${word ? `&w=${encodeURIComponent(word)}` : ''}` }, style: 'danger' });
 const MODE = { word: 'خود کلمه', contains: 'هر جای متن', regex: 'Regex' };
 
 // ---------- per-channel settings (in the settings table) ----------
-const DEF = { auto: true, smart: false, links: false, fwd: false, notify: false, backup: null, last: 0, deleted: 0 };
+const DEF = { auto: false, smart: false, links: false, fwd: false, notify: false, backup: null, last: 0, deleted: 0 };
 export async function cfg(chat) {
   return { ...DEF, ...JSON.parse((await store.getSetting(`cl:${chat}`)) || '{}') };
 }
@@ -205,32 +206,18 @@ async function rights(chat) {
   return null;
 }
 
+/** The one screen: «send the word whose posts should go». (The bot waits for it: st.w = cf:quick:<chat>.) */
 export async function panel(uid, chat, mid = null, note = '') {
   const ch = (await myChannels(uid)).find((x) => String(x.id) === String(chat));
   if (!ch) return home(uid, mid);
-  const c = await cfg(chat);
-  const ws = await words(chat, 'block');
   const warn = await rights(chat);
-  const list = ws.length ? ws.slice(0, 12).map((w) => `<code>${esc(w.word)}</code>`).join(' · ') + (ws.length > 12 ? ' …' : '') : '<i>هنوز هیچی</i>';
-  const id = chat;
   return edit(uid, mid,
-    `🧹 <b>پاکسازی کانال</b> — ${esc(ch.title)}\n${LINE}\n` +
-    `🚫 کلمه‌ها: ${list}\n` +
-    `🗑 حذف‌شده تا الان: <b>${fmt(c.deleted)}</b>\n\n` +
-    (c.auto ? '🛡 هر پست جدیدی که یکی از این کلمه‌ها رو داشته باشه، <b>همون لحظه</b> خودکار حذف میشه.' : '🛡 فیلتر خودکار خاموشه.') +
+    `🧹 <b>پاک کردن پست‌های کانال</b>\n📢 ${esc(ch.title)}\n${LINE}\n` +
+    '✍️ <b>کلمه‌ای که می‌خوای پست‌هاش پاک بشن رو همین‌جا بفرست.</b>\n\n' +
+    'مثلاً: <code>روم</code>\n\n' +
+    '💡 فارسی و انگلیسیش با هم پیدا میشه (روم = room = ROOM)' +
     (warn ? `\n\n${warn}` : '') + (note ? `\n\n${note}` : ''),
-    [
-      [G('➕ افزودن کلمه', `cf:wa:${id}:block`), U('📋 لیست کلمه‌ها', `cf:w:${id}:block:0`)],
-      [R('🗑 الان پاکسازی کن', `cf:pg:${id}`), R('🧨 حذف با یه کلمه', `cf:q:${id}`)],
-      [FULL(id)],
-      [R('🧽 خالی کردن پست‌های قدیمی (بیشتر از ۴۸ ساعت)', `cf:bl:${id}`)],
-      [tog(c.auto, '🛡 حذف خودکار پست‌های جدید', `cf:t:${id}:auto`)],
-      [tog(c.smart, '🧠 تشخیص پست‌های روم (ساعت، مپ، جایزه، ID…)', `cf:t:${id}:smart`)],
-      [tog(c.links, '🔗 لینک‌دار', `cf:t:${id}:links`), tog(c.fwd, '↪️ فورواردی', `cf:t:${id}:fwd`)],
-      [G('✅ استثناها', `cf:w:${id}:allow:0`), B('🧪 تست متن', `cf:ts:${id}`), tog(c.notify, '🔔', `cf:t:${id}:notify`)],
-      [B('🗄 پشتیبان', `cf:bk:${id}`), B('📊 گزارش', `cf:st:${id}`), B('❓', `cf:hp:${id}`)],
-      [B('🔙 برگشت به منو', 'menu')],
-    ]);
+    [[B('🔙 برگشت به منو', 'menu')]]);
 }
 
 const PAGE = 8;
@@ -259,29 +246,28 @@ const ADD_HELP = 'کلمه یا کلمه‌ها رو بفرست؛ چندتا ر�
   '✨ با پسوند هم پیدا میشه: روم‌ها، رومای، #روم_امشب — ولی «پرومیشن» نه\n' +
   '🔹 برای «هر جای متن» بین دو ستاره: <code>*روم*</code> · 🔹 Regex: <code>/prize|جایزه/</code>';
 
-/** Delete now: the matching posts of the last 48 hours; older matches are only counted. */
+/** Delete the posts with the word: the bot deletes the last 48 hours; older ones go with the admin's account. */
 async function purge(uid, chat, mid, quick = null) {
   const c = await cfg(chat);
   const matcher = await matcherFor(chat, c, quick);
-  if (matcher.empty) return panel(uid, chat, mid, '⚠️ اول یه کلمه اضافه کن.');
+  if (matcher.empty) return panel(uid, chat, mid);
   const warn = await rights(chat);
   if (warn) return panel(uid, chat, mid, warn);
   const { fresh, old } = await collect(chat, matcher);
   const r = fresh.length ? await removePosts(chat, c, fresh, quick ? 'quick' : 'purge') : { deleted: 0, old: 0, rate: false };
   const tooOld = old + r.old;
-  const what = quick ? `«<b>${esc(quick.word)}</b>»` : 'کلمه‌های فیلتر';
+  const word = quick?.word || '';
   return edit(uid, mid,
-    `🗑 <b>پاکسازی با ${what}</b>\n${LINE}\n` +
-    `✅ از کانال حذف شد: <b>${fmt(r.deleted)}</b> پست\n` +
-    (r.rate ? '⏳ تلگرام سرعت رو محدود کرد؛ چند ثانیه دیگه دوباره بزن.\n' : '') +
-    (tooOld ? `\n⛔️ <b>${fmt(tooOld)}</b> پست قدیمی‌تر از ۴۸ ساعت هم مطابقن. تلگرام به ربات اجازه‌ی <b>حذف</b> اون‌ها رو نمیده، ولی دو راه داری:\n🔐 <b>حذف کامل</b> با اکانت خودت (یه بار وارد میشی، همه پاک میشن، آخرش خارج میشه)\n🧽 <b>خالی کردن</b> با ربات: متن میشه «🗑» و عکس میشه سطل‌زباله\n` : '') +
-    (!r.deleted && !tooOld ? '\n✨ پستی پیدا نشد.\n' : '') +
-    (c.auto && !quick ? '\n🛡 از این به بعد هر پست جدید با این کلمه‌ها همون لحظه حذف میشه.' : ''),
+    `🔎 <b>«${esc(word)}»</b>\n${LINE}\n` +
+    (r.deleted ? `✅ <b>${fmt(r.deleted)}</b> پست پاک شد.\n` : '') +
+    (r.rate ? '⏳ تلگرام چند ثانیه صبر خواست؛ دوباره همون کلمه رو بفرست.\n' : '') +
+    (tooOld
+      ? `\n📦 <b>${fmt(tooOld)}</b> پست قدیمی‌تر هم پیدا شد.\nتلگرام اجازه نمیده ربات پست‌های قدیمی (بیشتر از ۲ روز) رو پاک کنه؛ با دکمه‌ی قرمز زیر <b>خودت</b> پاکشون کن 👇\n`
+      : !r.deleted ? '✨ پستی با این کلمه پیدا نکردم.\nاگه پست‌های خیلی قدیمی داری، با دکمه‌ی زیر کل کانال رو بگرد 👇\n' : '') +
+    '\n✍️ برای یه کلمه‌ی دیگه، همین الان بفرستش.',
     [
-      tooOld ? [FULL(chat)] : [],
-      tooOld ? [R(`🧽 خالی کردن ${fmt(tooOld)} پست قدیمی`, `cf:bl:${chat}${quick ? ':q' : ''}`)] : [],
-      quick ? [G('➕ این کلمه رو همیشه فیلتر کن', `cf:qs:${chat}`)] : [],
-      [B('📊 گزارش', `cf:st:${chat}`), B('🔙 پنل', `cf:p:${chat}`)],
+      [FULL(chat, word, tooOld ? `🔐 پاک کردن ${fmt(tooOld)} پست قدیمی` : '🔐 گشتن کل کانال (پست‌های قدیمی)')],
+      [B('🔙 برگشت به منو', 'menu')],
     ]);
 }
 
@@ -418,7 +404,11 @@ const HELP = `❓ <b>پاکسازی کانال چطور کار می‌کنه؟</
 export async function action(uid, st, data, mid) {
   const [, act, a, b, c3] = data.split(':');
   st.w = null;
-  if (!act || act === 'h') return home(uid, mid);
+  if (!act || act === 'h') {
+    const chs = await myChannels(uid);
+    if (chs.length === 1) st.w = `cf:quick:${chs[0].id}`; // one channel: straight to «send the word»
+    return home(uid, mid);
+  }
 
   if (act === 'wi' || act === 'wm' || act === 'wd') {
     const w = await one(sql`SELECT * FROM cl_words WHERE id = ${Number(a)}`);
@@ -436,7 +426,9 @@ export async function action(uid, st, data, mid) {
   if (!(await myChannels(uid)).some((x) => String(x.id) === String(chat))) return home(uid, mid);
 
   switch (act) {
-    case 'p': return panel(uid, chat, mid);
+    case 'p':
+      st.w = `cf:quick:${chat}`;
+      return panel(uid, chat, mid);
     case 'w': return wordList(uid, chat, b === 'allow' ? 'allow' : 'block', Number(c3) || 0, mid);
     case 'wa':
       st.w = `cf:add:${chat}:${b === 'allow' ? 'allow' : 'block'}`;
@@ -535,10 +527,10 @@ export async function input(uid, st, m) {
   if (what === 'quick') {
     const [it] = parseKeywordInput(t);
     if (!it || (it.mode === 'regex' && regexError(it.word))) {
-      await send(uid, '⚠️ یه کلمه‌ی درست بفرست.', [[R('❌ لغو', `cf:p:${chat}`)]]);
+      await send(uid, '✍️ یه کلمه بفرست، مثلاً: <code>روم</code>', [[B('🔙 برگشت به منو', 'menu')]]);
       return true;
     }
-    st.w = `cf:qr:${chat}`; // keeps the session (and the word, for «always filter it») alive
+    st.w = `cf:quick:${chat}`; // ready for the next word right away
     st.clq = { chat, word: it.word, mode: it.mode };
     await purge(uid, chat, null, st.clq);
     return true;

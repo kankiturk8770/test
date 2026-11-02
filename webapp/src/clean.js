@@ -91,9 +91,9 @@ async function boot() {
   }
   const ch = info.channels.find((c) => String(c.id) === String(info.chat));
   $('chan').textContent = '📢 ' + (ch?.title || info.chat);
-  const block = info.words.filter((w) => w.kind !== 'allow').map((w) => w.word);
-  $('words').value = (block.length ? block : ['روم']).join('\n');
-  $('smart').checked = info.smart;
+  // the word the admin just sent to the bot comes in the link (?w=…)
+  $('words').value = params.get('w') || '';
+  $('smart').checked = /^(روم|room)$/i.test((params.get('w') || '').trim());
   try {
     const saved = JSON.parse(localStorage.getItem('uf_api') || 'null');
     if (saved) { $('api-id').value = saved.id; $('api-hash').value = saved.hash; }
