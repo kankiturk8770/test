@@ -4,6 +4,8 @@ import { STYLES } from './data.js';
 import { user, bumpCount } from './store.js';
 import { openGiveaway } from './gv.js';
 import { planDelete } from './cleaner.js';
+import { revealAt, planReveal } from './pubg.js';
+import { localStr } from './store.js';
 
 export function build(d) {
   const L = ['✨🎮 <b>درود و خسته نباشید به همگی</b> 🎮✨', '',
@@ -14,6 +16,7 @@ export function build(d) {
     `👥 <b>حالت روم :</b>  ${esc(d.mode)}`, '',
     LINE, '📜 <b>قوانین روم</b>', '', ...(d.rules || []).map(esc)];
   if (d.room) L.push('', LINE, '🔑 <b>اطلاعات روم</b>', '', `<code>${esc(d.room)}</code>`);
+  else if (d.roomAt) L.push('', LINE, '🔑 <b>اطلاعات روم</b>', '', `⏳ آیدی و پسورد ساعت <b>${esc(d.roomAt)}</b> همین‌جا اعلام میشه`);
   if (d.desc) L.push('', LINE, '💬 <b>توضیحات</b>', '', esc(d.desc));
   L.push('', LINE, '📢 <b>شرط دریافت جایزه</b>', '', '😦 حتما برنده باید عضو چنل‌های زیر باشه ⬇️', '⭕️ در غیر اینصورت پرایز تعلق نمیگیره', '');
   L.push(...(d.spons || []).map((x) => '🚀 ' + x), '', '🔥 <b>موفق باشید</b> 🔥');
@@ -52,7 +55,11 @@ export async function deliver(uid, base, d, targets, pin) {
     let good, err;
     if (base === 'gv') [good, err] = await openGiveaway(uid, t, d, pin);
     else {
-      const r = await (base === 'post' ? sendBeauty : sendPost)(t, d);
+      // 🔑 the ID/Pass come later: the post goes out without them
+      const at = base === 'room' ? await revealAt(d) : null;
+      const shown = at ? { ...d, room: null, roomAt: (await localStr(at)).replace(/^\S+ /, '') } : d;
+      const r = await (base === 'post' ? sendBeauty : sendPost)(t, shown);
+      if (r.ok && at) await planReveal(t, r.result.message_id, d, at, r.result.caption !== undefined, uid);
       good = r.ok;
       err = r.description;
       if (good && pin) await call('pinChatMessage', { chat_id: t, message_id: r.result.message_id });

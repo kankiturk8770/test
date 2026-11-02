@@ -15,6 +15,8 @@ import { apiAction } from '../lib/apikeys.js';
 import * as P from '../lib/players.js';
 import { adminPanel, adminAction } from '../lib/admins.js';
 import * as C from '../lib/cleaner.js';
+import * as PG from '../lib/pubg.js';
+import { build } from '../lib/posts.js';
 import { heartbeat } from '../lib/heartbeat.js';
 
 export default async function (c) {
@@ -90,6 +92,7 @@ async function handle(c, uid, st, data) {
   if (data === 'tn' || data.startsWith('tn:')) return T.action(uid, st, data, mid);
   if (data === 'ak' || data.startsWith('ak:')) return apiAction(uid, st, data);
   if (data === 'cf' || data.startsWith('cf:')) return C.action(uid, st, data, mid); // 🧹 channel cleaner
+  if (data.startsWith('px:')) return PG.action(uid, data, build); // 🔑 reveal now · 📈 daily report on/off
   if (data === 'adm') return adminPanel(uid);
   if (data.startsWith('adm:')) return adminAction(uid, data);
   if (data === 'auto' || /^(au|ap|ar|ax):/.test(data)) {

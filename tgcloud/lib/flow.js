@@ -8,6 +8,7 @@ import * as store from './store.js';
 import { sendPost, sendBeauty, deliver } from './posts.js';
 import { gvMake, sendGvPost } from './gv.js';
 import { aiEnabled, writePost } from './ai.js';
+import { REVEAL_STEPS, revealLabel } from './pubg.js';
 
 const steps = (s) => SETS[s.kind];
 // under a "that answer didn't work" note while building a post
@@ -67,6 +68,7 @@ async function previewKb(uid, s) {
   rows.push(...grid(steps(s).map(([k, t]) => btn('✏️ ' + t, 'e:' + k)), 3));
   rows.push([btn('📌 پین کردن: ' + (s.pin ? 'روشن ✅' : 'خاموش ❌'), 'pin')]);
   // delete the post from the channel by itself after a while (a bot may delete only within 48 hours)
+  if (kbase(s.kind) === 'room' && s.d.room) rows.push([btn('🔑 آیدی/پسورد: ' + revealLabel(s.d.reveal), 'rvl')]);
   if (!gv) rows.push([btn('🕒 حذف خودکار از کانال: ' + (s.d.autodel ? `${s.d.autodel} ساعت بعد` : 'خاموش ❌'), 'adel')]);
   rows.push([btn('🚀  ارسال الان  🚀', 'go'), btn('⏰ زمان‌بندی', 'sch')]);
   rows.push([btn('❌ لغو', 'cancel')]);
@@ -401,6 +403,11 @@ export async function sessionCallback(uid, st, data, mid) {
   }
   if (data === 'pin') {
     s.pin = !s.pin;
+    if (s.ctl) await markup(uid, s.ctl, await previewKb(uid, s));
+    return;
+  }
+  if (data === 'rvl') { // when the room ID/Pass appear: now → 10 / 5 min before → at the start
+    s.d.reveal = REVEAL_STEPS[(REVEAL_STEPS.indexOf(s.d.reveal) + 1) % REVEAL_STEPS.length];
     if (s.ctl) await markup(uid, s.ctl, await previewKb(uid, s));
     return;
   }

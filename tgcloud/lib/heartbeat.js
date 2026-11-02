@@ -8,6 +8,8 @@ import { sql } from 'sdk/db';
 import { now } from './util.js';
 import { autoTick } from './autopost.js';
 import { blankTick, sessionTick, timedTick } from './cleaner.js';
+import { revealTick, membersTick } from './pubg.js';
+import { build } from './posts.js';
 
 export async function heartbeat() {
   const t = now();
@@ -18,4 +20,6 @@ export async function heartbeat() {
   await blankTick(8000).catch((e) => console.error('blank', e)); // a running «🧽 blank old posts» goes on
   await sessionTick().catch((e) => console.error('session', e)); // a kept Mini App login whose time is up
   await timedTick().catch((e) => console.error('timed', e)); // 🕒 posts planned to delete themselves
+  await revealTick(build).catch((e) => console.error('reveal', e)); // 🔑 room ID/Pass due
+  await membersTick().catch((e) => console.error('members', e)); // 📈 the daily member report
 }
