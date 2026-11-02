@@ -1,35 +1,13 @@
-# 🧹 ربات پاکسازی هوشمند کانال (Telegram Serverless)
+# UFDEVILLCNL_bot (Telegram Serverless)
 
-حذف همهٔ پست‌هایی که یک کلمهٔ خاص دارند (مثل «روم»، «پرایز»، «خیار» یا هر کلمهٔ دلخواه) — حتی قدیمی‌ترین پست‌ها.
+Source of the bot running on Telegram's serverless platform (pulled with `npx tgcloud pull`).
 
-## امکانات
-- 🚫 **کلمات فیلتر** (شامل / کلمهٔ کامل / Regex) با یکسان‌سازی حروف فارسی و عربی، اعراب و نیم‌فاصله
-- ✅ **کلمات استثنا**: پستی که این کلمات را دارد هرگز حذف نمی‌شود
-- 📥 **اسکن پست‌های قدیمی**: آرشیو کانال را یک‌بار می‌خواند و ایندکس می‌کند (Bot API جست‌وجو در تاریخچه ندارد)
-- 🔍 **پیش‌نمایش** قبل از حذف + 🗑 **پاکسازی کامل** با دسته‌های ۱۰۰تایی (هزاران پست)
-- 🧨 **حذف فوری با یک کلمه** بدون ذخیره در لیست
-- 🛡 **فیلتر خودکار** پست‌های جدید و ویرایش‌شده، 🔗 حذف پست‌های لینک‌دار، ↪️ حذف پست‌های فورواردی
-- 🖼 حذف کل آلبوم وقتی کپشن آن مطابق است
-- 🗄 **پشتیبان‌گیری** قبل از حذف (پیوی یا کانال آرشیو)
-- 📊 آمار، 🧾 گزارش حذف‌ها، 🔔 اعلان حذف خودکار، چند مدیر برای هر کانال
-- 🎨 دکمه‌های رنگی (سبز / قرمز / آبی)
+## 🧹 Channel cleaner (`lib/cleaner.js`)
+Main menu → «🧹 پاکسازی کانال» or `/clean`:
+- filter words (contains / "whole word" / /regex/) with Persian/Arabic normalization, exception words
+- full-history search & delete: reads every old post (forward → read → delete copy), deletes matches, indexes the rest
+- instant purge from the index, one-off quick word, preview, auto-filter of new & edited posts, album handling
+- link / forward rules, backup before delete (PM or archive channel), stats and deletion log
+- long jobs continue from the cron (`endpoints/tick`, set up with /timer) or the «▶️ ادامه» button
 
-## دیپلوی
-```sh
-npm install
-export TGCLOUD_TOKEN='<کلید CLI ربات>'   # یا: npx tgcloud login
-npx tgcloud push       # آپلود کد
-npx tgcloud migrate    # ساخت جدول‌های دیتابیس
-npx tgcloud webhook    # بررسی اینکه channel_post و ... فعال هستند
-```
-
-## ساختار
-| فایل | کار |
-|---|---|
-| `tgcloud/schema.js` | جدول‌ها: channels, managers, keywords, posts, logs, sessions |
-| `tgcloud/lib/engine.js` | بررسی دسترسی، حذف دسته‌ای، فیلتر خودکار، اسکن آرشیو |
-| `tgcloud/lib/app.js` | صفحه‌ها و عملیات |
-| `tgcloud/lib/ui.js` | کیبوردها و دکمه‌های رنگی |
-| `tgcloud/lib/text.js` | یکسان‌سازی متن و تطبیق کلمات |
-| `tgcloud/lib/store.js` | دسترسی به دیتابیس |
-| `tgcloud/handlers/*` | message, callback_query, channel_post, edited_channel_post, my_chat_member |
+Buttons are colored centrally in `lib/util.js` (`paint`): red = delete/cancel, green = confirm/add, blue = sections.

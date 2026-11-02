@@ -1,263 +1,128 @@
-// handlers/callback_query.js — every inline-button press lands here.
-import { api } from 'sdk';
+import { db } from 'sdk';
+import { sql } from 'sdk/db';
 import * as store from '../lib/store.js';
-import * as ui from '../lib/ui.js';
-import * as app from '../lib/app.js';
-import * as engine from '../lib/engine.js';
-import { escapeHtml, fmt } from '../lib/text.js';
+import { send, btn, call } from '../lib/util.js';
+import { tick } from '../lib/timer.js';
+import { aiEnabled } from '../lib/ai.js';
+import { AI_PROMPT } from '../lib/aiflow.js';
+import { welcome, HELP, startSession, showJobs, showChannels, showStats, addHelp, menuKb, sessionCallback } from '../lib/flow.js';
+import { gvJoin, gvMenu, showGvs, loadGv, drawGiveaway, cancelGiveaway, templates } from '../lib/gv.js';
+import { autoPanel, autoAction, draftAction } from '../lib/autopost.js';
+import { claimTap } from '../lib/claim.js';
+import { predictCallback, channelPredict, resultPicker, resultConfirm, announceResult } from '../lib/predict.js';
+import * as T from '../lib/tournament.js';
+import { apiAction } from '../lib/apikeys.js';
+import * as P from '../lib/players.js';
+import { adminPanel, adminAction } from '../lib/admins.js';
+import * as C from '../lib/cleaner.js';
 
-const TOGGLES = new Set(['autoFilter', 'ruleLinks', 'ruleForward', 'notify']);
-const LONG = new Set(['pv', 'pg', 'py', 'qy', 'sb', 'sr', 'sd', 'stt']);
-
-export default async function (q) {
-  const user = q.from;
-  const msg = q.message;
-  const data = q.data || '';
-  if (!msg) return toast(q, '');
-  const chatId = msg.chat.id;
-  const mid = msg.message_id;
-  const [act, a1, a2, a3] = data.split(':');
-
-  let answered = false;
-  const answer = async (text = '', alert = false) => {
-    if (answered) return;
-    answered = true;
-    await toast(q, text, alert);
-  };
-  if (LONG.has(act)) await answer('⏳ لطفاً صبر کنید…');
-
-  try {
-    // ── menus without a channel ─────────────────────────────
-    if (act === 'noop') return await answer();
-    if (act === 'menu') {
-      await store.clearSession(user.id);
-      if (a1 === 'home') await app.home(user, chatId, mid);
-      else if (a1 === 'channels') await app.channels(user, chatId, mid);
-      else if (a1 === 'add') {
-        await store.setSession(user.id, 'add_channel');
-        await app.render(chatId, mid, ui.addChannelHelp());
-      } else if (a1 === 'help') await app.render(chatId, mid, ui.helpText());
-      else if (a1 === 'commands') await app.render(chatId, mid, ui.commandsText());
-      return await answer();
-    }
-
-    // ── keyword-level actions ───────────────────────────────
-    if (act === 'kv' || act === 'km' || act === 'kd') {
-      const kw = await store.getKeyword(Number(a1));
-      if (!kw) return await answer('این کلمه دیگر وجود ندارد.');
-      if (!(await store.isManager(kw.channelId, user.id))) return await answer('⛔️ دسترسی ندارید.', true);
-      const ch = await store.getChannel(kw.channelId);
-      if (act === 'kv') {
-        return await answer(`«${kw.word}» — حالت: ${kw.mode} — ${fmt(kw.hits)} حذف`, true);
-      }
-      if (act === 'km') {
-        if (kw.mode === 'regex') return await answer('حالت Regex قابل تغییر نیست.');
-        const mode = kw.mode === 'word' ? 'contains' : 'word';
-        await store.setKeywordMode(kw.id, mode);
-        await app.keywordList(ch, kw.kind, Number(a2) || 0, chatId, mid);
-        return await answer(mode === 'word' ? '🔁 کلمهٔ کامل' : '🔁 شامل');
-      }
-      await store.deleteKeyword(kw.id);
-      await app.keywordList(ch, kw.kind, Number(a2) || 0, chatId, mid);
-      return await answer('🗑 حذف شد');
-    }
-
-    // ── channel-level actions ───────────────────────────────
-    const chId = Number(a1);
-    if (!chId) return await answer();
-    if (!(await store.isManager(chId, user.id))) return await answer('⛔️ شما مدیر این کانال نیستید.', true);
-    let ch = await store.getChannel(chId);
-    if (!ch) return await answer('کانال پیدا نشد.', true);
-
-    switch (act) {
-      case 'ch':
-        await store.clearSession(user.id);
-        await app.panel(ch, chatId, mid);
-        break;
-
-      case 'kw':
-        await store.clearSession(user.id);
-        await app.keywordList(ch, a2 === 'allow' ? 'allow' : 'block', Number(a3) || 0, chatId, mid);
-        break;
-
-      case 'ka': {
-        const kind = a2 === 'allow' ? 'allow' : 'block';
-        await store.setSession(user.id, 'add_kw', { ch: chId, kind });
-        await app.render(chatId, mid, ui.addKeywordPrompt(ch, kind));
-        break;
-      }
-
-      case 'kc':
-        await app.render(chatId, mid, {
-          text: `⚠️ همهٔ ${a2 === 'allow' ? 'استثناها' : 'کلمات فیلتر'} این کانال پاک شوند؟`,
-          reply_markup: ui.kb([ui.red('🧹 بله، پاک کن', `kcy:${chId}:${a2}`), ui.green('✖️ خیر', `kw:${chId}:${a2}:0`)]),
-        });
-        break;
-
-      case 'kcy':
-        await store.clearKeywords(chId, a2 === 'allow' ? 'allow' : 'block');
-        await app.keywordList(ch, a2 === 'allow' ? 'allow' : 'block', 0, chatId, mid);
-        await answer('🧹 لیست پاک شد');
-        break;
-
-      case 'pv':
-        await app.preview(ch, chatId, mid);
-        break;
-
-      case 'pg':
-        await app.confirm(ch, chatId, mid);
-        break;
-
-      case 'py':
-        await app.purge(ch, user, chatId, mid);
-        break;
-
-      case 'qk':
-        await store.setSession(user.id, 'quick', { ch: chId });
-        await app.render(chatId, mid, {
-          text:
-            `🧨 <b>حذف فوری با یک کلمه</b> — ${escapeHtml(ch.title)}\n${ui.LINE}\n` +
-            `کلمه را بفرستید؛ همهٔ پست‌هایی که این کلمه را دارند (حتی قدیمی‌ترین‌ها) پیدا می‌شوند و بعد از تأیید شما حذف می‌شوند.\n\n` +
-            `این کلمه در لیست فیلتر ذخیره <b>نمی‌شود</b>.\n` +
-            `<code>"کلمه"</code> = کلمهٔ کامل · <code>/regex/</code> = عبارت منظم`,
-          reply_markup: ui.kb([ui.red('✖️ لغو', `ch:${chId}`)]),
-        });
-        break;
-
-      case 'qy': {
-        const s = await store.getSession(user.id);
-        if (s?.state !== 'quick_ready' || s.data?.ch !== chId) {
-          await answer('⏱ منقضی شد؛ دوباره کلمه را وارد کنید.', true);
-          break;
-        }
-        await app.purge(ch, user, chatId, mid, { word: s.data.word, mode: s.data.mode });
-        break;
-      }
-
-      case 'sc':
-        await app.scanView(ch, chatId, mid);
-        break;
-
-      case 'sd': {
-        try {
-          const last = await engine.detectLastId(ch);
-          ch = await store.getChannel(chId);
-          await app.scanView(ch, chatId, mid, `🎯 آخرین پیام کانال: <b>#${fmt(last)}</b>`);
-        } catch (e) {
-          await app.scanView(ch, chatId, mid, '❌ ربات نتوانست در کانال پیام بفرستد. دسترسی «ارسال پیام» را به ربات بدهید یا آخرین پست را فوروارد کنید.');
-        }
-        break;
-      }
-
-      case 'sb': {
-        const st = await store.postStats(chId);
-        const to = Math.max(ch.lastKnownId || 0, st.maxId || 0);
-        if (!to) {
-          await app.scanView(ch, chatId, mid, '⚠️ تعداد پیام‌های کانال معلوم نیست. آخرین پست کانال را فوروارد کنید یا «تشخیص خودکار» را بزنید.');
-          break;
-        }
-        await store.updateChannel(chId, { scanNext: 1, scanTo: to, scanFound: 0, scanActive: true });
-        ch = await store.getChannel(chId);
-        const res = await engine.scanBatch(ch, user.id, 100);
-        ch = await store.getChannel(chId);
-        await app.scanView(ch, chatId, mid, engine.scanNote(res));
-        break;
-      }
-
-      case 'sr': {
-        if (!ch.scanActive) { await app.scanView(ch, chatId, mid); break; }
-        const n = Math.min(Math.max(Number(a2) || 100, 10), 500);
-        const res = await engine.scanBatch(ch, user.id, n);
-        ch = await store.getChannel(chId);
-        await app.scanView(ch, chatId, mid, engine.scanNote(res));
-        break;
-      }
-
-      case 'ss':
-        await store.updateChannel(chId, { scanActive: false });
-        ch = await store.getChannel(chId);
-        await app.scanView(ch, chatId, mid, '⏹ اسکن متوقف شد. پست‌هایی که تا الان خوانده شده‌اند ذخیره هستند.');
-        break;
-
-      case 'tg': {
-        if (!TOGGLES.has(a2)) break;
-        await store.updateChannel(chId, { [a2]: !ch[a2] });
-        ch = await store.getChannel(chId);
-        await app.panel(ch, chatId, mid);
-        await answer(ch[a2] ? '✅ روشن شد' : '⛔️ خاموش شد');
-        break;
-      }
-
-      case 'bk':
-        await store.clearSession(user.id);
-        await app.render(chatId, mid, ui.backupPanel(ch));
-        break;
-
-      case 'bp':
-        await store.updateChannel(chId, { backupChat: user.id });
-        ch = await store.getChannel(chId);
-        await app.render(chatId, mid, ui.backupPanel(ch));
-        await answer('✅ پشتیبان‌ها به پیوی شما ارسال می‌شوند');
-        break;
-
-      case 'bc':
-        await store.setSession(user.id, 'backup', { ch: chId });
-        await app.render(chatId, mid, {
-          text: '📦 یک پیام از <b>کانال/گروه آرشیو</b> را برای من فوروارد کنید (ربات باید آنجا ادمین باشد).',
-          reply_markup: ui.kb([ui.red('✖️ لغو', `bk:${chId}`)]),
-        });
-        break;
-
-      case 'bx':
-        await store.updateChannel(chId, { backupChat: null });
-        ch = await store.getChannel(chId);
-        await app.render(chatId, mid, ui.backupPanel(ch));
-        break;
-
-      case 'ts':
-        await store.setSession(user.id, 'test', { ch: chId });
-        await app.render(chatId, mid, {
-          text: '🧪 یک متن (یا پست فورواردی) بفرستید تا ببینید آیا با فیلترهای فعلی حذف می‌شود یا نه.',
-          reply_markup: ui.kb([ui.plain('🔙 پنل', `ch:${chId}`)]),
-        });
-        break;
-
-      case 'stt':
-        await app.stats(ch, chatId, mid);
-        break;
-
-      case 'lg':
-        await app.logsView(ch, chatId, mid);
-        break;
-
-      case 'rm':
-        await app.render(chatId, mid, {
-          text: `⚠️ کانال <b>${escapeHtml(ch.title)}</b> و همهٔ تنظیمات، کلمات و ایندکس آن از ربات حذف شود؟\n\n(پست‌های کانال دست نمی‌خورند.)`,
-          reply_markup: ui.kb([ui.red('❌ بله، حذف کن', `rmy:${chId}`)], [ui.green('✖️ خیر', `ch:${chId}`)]),
-        });
-        break;
-
-      case 'rmy':
-        await store.removeChannel(chId);
-        await app.channels(user, chatId, mid);
-        await answer('کانال حذف شد');
-        break;
-    }
-  } catch (e) {
-    console.error(e);
-    const err = '❌ خطا: ' + String(e.description || e.message || e).slice(0, 150);
-    if (answered) {
-      try { await app.render(chatId, null, { text: escapeHtml(err), reply_markup: ui.kb([ui.plain('🔙 منوی اصلی', 'menu:home')]) }); } catch {}
-    } else {
-      await answer(err, true);
-    }
-    return;
+export default async function (c) {
+  const data = c.data || '';
+  if (data.startsWith('pq:')) { // a score button under a channel post
+    await channelPredict(c);
+    return tick().catch((e) => console.error('tick', e));
   }
-  await answer();
+  if (data.startsWith('gc:')) return claimTap(c); // "get the prize" under the results
+  if (data.startsWith('gj:')) { // join button in a channel
+    await gvJoin(c);
+    return tick().catch((e) => console.error('tick', e));
+  }
+  // a tournament player's buttons (registration, dashboard, "we're ready"); tp:r answers with its own popup
+  if (data.startsWith('tp:') || data.startsWith('tl:')) {
+    if (!data.startsWith('tp:r:')) await call('answerCallbackQuery', { callback_query_id: c.id });
+    return P.callback(c);
+  }
+  await call('answerCallbackQuery', { callback_query_id: c.id });
+  if (/^p[pc]:/.test(data)) return predictCallback(c); // anyone's score picker
+  const uid = c.from.id;
+  // everything else (the menu, giveaways, posts, settings) is the owner's
+  if (!(await store.isOwner(uid))) return P.userMenu(uid);
+  await store.user(c.from);
+  const st = await store.getSession(uid);
+  try {
+    await handle(c, uid, st, data);
+  } finally {
+    await store.saveSession(uid, st);
+  }
+  await tick().catch((e) => console.error('tick', e));
 }
 
-async function toast(q, text, alert = false) {
-  try {
-    await api.answerCallbackQuery({ callback_query_id: q.id, text: text || undefined, show_alert: alert });
-  } catch {}
+async function handle(c, uid, st, data) {
+  const mid = c.message?.message_id;
+  const name = c.from.first_name || '';
+  if (data === 'menu') {
+    st.w = null;
+    return welcome(uid, name);
+  }
+  if (data === 'new') return startSession(uid, st, 'room');
+  if (data === 'post') return startSession(uid, st, 'post');
+  if (data === 'gv') return gvMenu(uid);
+  if (data.startsWith('gvn:')) return startSession(uid, st, 'gv_' + data.slice(4));
+  if (data.startsWith('gvq:')) return startSession(uid, st, 'gv_' + data.slice(4), { quick: true });
+  if (data.startsWith('gvt:')) {
+    const t = (await store.isOwner(uid)) && (await templates())[Number(data.slice(4))];
+    if (!t) return gvMenu(uid);
+    return startSession(uid, st, t.kind, { prefill: t.d, tpl: true });
+  }
+  if (data === 'gvl') {
+    st.w = null; // back from "type the result"
+    return showGvs(uid);
+  }
+  // the match result: ➕/➖ per team, then confirm (owner only; checked inside)
+  if (data.startsWith('mr:')) return resultPicker(uid, Number(data.slice(3)));
+  if (/^r[pky]:\d+:\d+:\d+$/.test(data)) {
+    const [act, gid, a, b] = data.split(':');
+    if (act === 'rp') return resultPicker(uid, Number(gid), Number(a), Number(b), mid);
+    if (act === 'rk') return resultConfirm(uid, Number(gid), Number(a), Number(b), mid);
+    await call('editMessageReplyMarkup', { chat_id: uid, message_id: mid, reply_markup: { inline_keyboard: [] } });
+    return announceResult(uid, Number(gid), Number(a), Number(b));
+  }
+  if (data === 'noop') return;
+  if (data === 'tn' || data.startsWith('tn:')) return T.action(uid, st, data, mid);
+  if (data === 'ak' || data.startsWith('ak:')) return apiAction(uid, st, data);
+  if (data === 'cf' || data.startsWith('cf:')) return C.action(uid, st, data, mid); // 🧹 channel cleaner
+  if (data === 'adm') return adminPanel(uid);
+  if (data.startsWith('adm:')) return adminAction(uid, data);
+  if (data === 'auto' || /^(au|ap|ar|ax):/.test(data)) {
+    if (!(await store.isOwner(uid))) return send(uid, '⛔️ این بخش فقط برای صاحب رباته.');
+    if (data === 'auto') {
+      st.w = null; // back from "type the times / sources"
+      return autoPanel(uid);
+    }
+    if (data.startsWith('au:')) return autoAction(uid, st, data, mid);
+    return draftAction(uid, data, c.message);
+  }
+  if (data === 'ai') {
+    if (!(await aiEnabled())) return welcome(uid, name);
+    st.w = 'ai';
+    return send(uid, AI_PROMPT, [[btn('🏠 منو', 'menu')]]);
+  }
+  if (data.startsWith('gd:') || data.startsWith('gx:')) {
+    const g = await loadGv(data.slice(3));
+    if (!g || g.owner !== uid || g.status !== 'open') return send(uid, '⌛️ این قرعه‌کشی دیگه باز نیست.');
+    if (data.startsWith('gd:')) {
+      if (!g.count) return send(uid, '⚠️ هنوز کسی ثبت‌نام نکرده.');
+      return drawGiveaway(g.id);
+    }
+    await cancelGiveaway(g);
+    return send(uid, `⛔️ قرعه‌کشی #${g.id} لغو شد.`, [[btn('🏠 منو', 'menu')]]);
+  }
+  if (data === 'jobs') return showJobs(uid);
+  if (data.startsWith('sc:')) {
+    await db.run(sql`DELETE FROM jobs WHERE id = ${Number(data.slice(3))} AND user_id = ${uid}`);
+    return showJobs(uid);
+  }
+  if (data === 'chs') return showChannels(uid);
+  if (data === 'addch') {
+    st.w = 'addch';
+    return send(uid, addHelp(), [[btn('🏠 منو', 'menu')]]);
+  }
+  if (data === 'stats') return showStats(uid);
+  if (data === 'help') return send(uid, HELP, [[btn('🏠 منو', 'menu')]]);
+  if (data.startsWith('dc:')) {
+    await store.removeChannel(uid, Number(data.slice(3)));
+    return showChannels(uid);
+  }
+  if (!st.s) return send(uid, '⌛️ این جلسه تموم شده.', await menuKb());
+  return sessionCallback(uid, st, data, mid);
 }

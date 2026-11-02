@@ -1,10 +1,6 @@
-// handlers/channel_post.js — every new channel post: index it, auto-filter it.
-import { handleChannelPost } from '../lib/engine.js';
+// A new channel post: the cleaner keeps it in its index and deletes it at once if it has a filtered word.
+import { onChannelPost } from '../lib/cleaner.js';
 
-export default async function (message) {
-  try {
-    await handleChannelPost(message, false);
-  } catch (e) {
-    console.error(e);
-  }
+export default async function (m) {
+  await onChannelPost(m, false).catch((e) => console.error('cleaner post', e));
 }

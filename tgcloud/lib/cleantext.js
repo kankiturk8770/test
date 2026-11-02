@@ -1,7 +1,7 @@
-// Text helpers: Persian/Arabic normalization, keyword matching, HTML escaping.
+// Text helpers for the channel cleaner: Persian/Arabic normalization, keyword matching.
 
-const DIACRITICS = /[ً-ٰٟۖ-ۭـ]/g; // harakat + tatweel
-const ZW = /[​-‏‪-‮⁦-⁩﻿]/g;  // zero-width / bidi marks
+const DIACRITICS = /[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g; // harakat + tatweel
+const ZW = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g; // zero-width / bidi marks
 const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 
@@ -15,7 +15,7 @@ export function normalize(input) {
     .replace(/[أإٱ]/g, 'ا')
     .replace(/ؤ/g, 'و')
     .replace(/ة/g, 'ه')
-    .replace(/‌/g, ' ')   // ZWNJ → space
+    .replace(/\u200C/g, ' ')   // ZWNJ → space
     .replace(ZW, '')
     .replace(DIACRITICS, '')
     .replace(/[۰-۹]/g, (d) => String(FA_DIGITS.indexOf(d)))

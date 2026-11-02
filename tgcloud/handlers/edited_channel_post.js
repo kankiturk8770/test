@@ -1,10 +1,6 @@
-// handlers/edited_channel_post.js — a post was edited: re-index and re-check filters.
-import { handleChannelPost } from '../lib/engine.js';
+// An edited channel post: re-checked against the cleaner's words (an edit can add a filtered word).
+import { onChannelPost } from '../lib/cleaner.js';
 
-export default async function (message) {
-  try {
-    await handleChannelPost(message, true);
-  } catch (e) {
-    console.error(e);
-  }
+export default async function (m) {
+  await onChannelPost(m, true).catch((e) => console.error('cleaner edit', e));
 }
