@@ -8,7 +8,8 @@ const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 /** Normalize text so "روم", "رُوم", "روم" with ZWNJ, Arabic ي/ك … all compare equal. */
 export function normalize(input) {
   if (!input) return '';
-  let s = String(input).toLowerCase();
+  // NFKC turns fancy letters into plain ones: 𝗥𝗢𝗢𝗠 / 𝚁𝙾𝙾𝙼 / ＲＯＯＭ → room
+  let s = String(input).normalize('NFKC').toLowerCase();
   s = s
     .replace(/[يى]/g, 'ی')
     .replace(/ك/g, 'ک')
@@ -52,20 +53,76 @@ export function regexError(src) {
   }
 }
 
-/** Build a tester for one keyword row → (normalizedText, rawText) => boolean */
+// The same word in the other language: typing «روم» also finds room / ROOM / R00M, and the other way round.
+const ALIASES = [
+  ['روم', 'room'], ['پرایز', 'prize'], ['جایزه', 'prize'], ['اسکواد', 'squad'], ['کاستوم', 'custom'],
+  ['تورنمنت', 'tournament'], ['یوسی', 'uc'], ['اسپانسر', 'sponsor'], ['قرعه کشی', 'giveaway'], ['پابجی', 'pubg'],
+  ['تیم', 'team'], ['مپ', 'map'], ['اسلاید', 'slide'], ['اسلات', 'slot'], ['ریکشن', 'reaction'],
+];
+const isLatin = (w) => /^[a-z0-9 ]+$/.test(w);
+export function variants(word) {
+  const w = normalize(word);
+  const out = new Set([w]);
+  for (const [fa, en] of ALIASES) {
+    if (w === fa) out.add(en);
+    if (w === en) out.add(fa);
+  }
+  return [...out].filter(Boolean);
+}
+
+// Latin text squeezed: leet digits to letters, everything but a-z dropped: "R 0 0 M", "r.o.o.m", "UF-ROOM" → …room…
+const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's' };
+export function latinSqueeze(s) {
+  return String(s || '').normalize('NFKC').toLowerCase().replace(/[013457@$]/g, (c) => LEET[c]).replace(/[^a-z]+/g, '');
+}
+
+// A Persian word may carry a short suffix (روم‌ها، رومای، رومایه، روماممون) and may be stuck to a few
+// common words before it (امشبروم، تاروم، 2روم) — but «پرومیشن», «ترومپ», «بروم» and «نروم» don't count.
+const STUCK = '(?:تا|امشب|فردا|یه|این|اون|هر|بعد|قبل|ساعت|دو|سه)';
+function wordRe(w) {
+  if (isLatin(w)) return new RegExp(`(?<![a-z])${escapeRegex(w)}(?:s|es)?(?![a-z])`, 'u');
+  return new RegExp(`(?:(?<!\\p{L})|(?<=(?<!\\p{L})${STUCK}))${escapeRegex(w)}(?:[اهیومتش]\\p{L}{0,4})?(?!\\p{L})`, 'u');
+}
+
+/**
+ * A tester for one keyword row → (normalizedText, rawText) => boolean
+ * mode 'word' (default): the word itself (with suffixes), in Persian and its English form
+ * mode 'contains': anywhere, even inside another word · mode 'regex': as written
+ */
 export function compileKeyword(kw) {
   if (kw.mode === 'regex') {
     let re;
     try { re = new RegExp(kw.word, 'iu'); } catch { return () => false; }
     return (norm, raw) => re.test(raw) || re.test(norm);
   }
-  const w = normalize(kw.word);
-  if (!w) return () => false;
-  if (kw.mode === 'word') {
-    const re = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegex(w)}(?![\\p{L}\\p{N}_])`, 'u');
-    return (norm) => re.test(norm);
-  }
-  return (norm) => norm.includes(w);
+  const vs = variants(kw.word);
+  if (!vs.length) return () => false;
+  const tests = vs.map((w) => {
+    if (kw.mode === 'contains') return (norm) => norm.includes(w);
+    const re = wordRe(w);
+    // English words also hidden as R O O M / R00M / UF-ROOM (4+ letters, so short ones don't hit by chance)
+    const sq = isLatin(w) && w.replace(/ /g, '').length >= 4 ? w.replace(/ /g, '') : null;
+    return (norm, raw) => re.test(norm) || (sq !== null && latinSqueeze(raw).includes(sq));
+  });
+  return (norm, raw) => tests.some((t) => t(norm, raw));
+}
+
+// ---------- 🧠 smart detection: is this post about a room (custom match)? ----------
+// Each clue adds points; 5+ points = a room post, even without the word «روم».
+const CLUES = [
+  [4, /(?<![\p{L}])(روم|room|کاستوم)|custom(?!\s*dns)/u],
+  [3, /(آیدی|ایدی|id)\s*[:：=]?\s*\d{5,}/u],
+  [3, /(پسورد|پس ورد|رمز|pass|password)\s*[:：=]/u],
+  [2, /(ارنگل|erangel|میرامار|miramar|سانهوک|sanhok|ویکندی|vikendi|لیویک|livik|کاراکین|karakin|نوستا|nusa|رندو|rondo|دستون|deston|tdm|وارهد|warehouse)/u],
+  [2, /(یوسی|(?<![a-z])uc(?![a-z])|پرایز|prize|جایزه|mvp)/u],
+  [2, /(اسکواد|squad|دو نفره|duo|سولو|solo|اسلاید|slide|اسلات|slot)/u],
+  [2, /(ساعت\s*\d|(?<![\d.:])\d{1,2}\s*:\s*\d{2}(?![\d.:])|امشب|فردا شب)/u],
+  [1, /(مپ|map|حالت|mode|قوانین|شرکت|ثبت نام|برنده|winner)/u],
+];
+export function roomScore(norm) {
+  let s = 0;
+  for (const [w, re] of CLUES) if (re.test(norm)) s += w;
+  return s;
 }
 
 /**
@@ -75,13 +132,14 @@ export function compileKeyword(kw) {
 export function buildMatcher(channel, keywordRows) {
   const block = keywordRows.filter((k) => k.kind !== 'allow').map((k) => ({ k, t: compileKeyword(k) }));
   const allow = keywordRows.filter((k) => k.kind === 'allow').map((k) => ({ k, t: compileKeyword(k) }));
-  const empty = block.length === 0 && !channel.ruleLinks && !channel.ruleForward;
+  const empty = block.length === 0 && !channel.ruleLinks && !channel.ruleForward && !channel.smartRoom;
 
   const fn = (post) => {
     const raw = post.body || '';
     const norm = normalize(raw);
     for (const a of allow) if (a.t(norm, raw)) return null;   // exception wins
     for (const b of block) if (b.t(norm, raw)) return { keywordId: b.k.id, reason: b.k.word };
+    if (channel.smartRoom && roomScore(norm) >= 5) return { keywordId: null, reason: '🧠 پست روم' };
     if (channel.ruleLinks && post.hasLink) return { keywordId: null, reason: '🔗 لینک' };
     if (channel.ruleForward && post.isForward) return { keywordId: null, reason: '↪️ فورواردی' };
     return null;
@@ -130,8 +188,9 @@ export function parseKeywordInput(input) {
     for (const piece of l.split(/[,،]/)) {
       const w = piece.trim();
       if (!w) continue;
-      if (w.startsWith('"') && w.endsWith('"') && w.length > 2) out.push({ word: w.slice(1, -1), mode: 'word' });
-      else out.push({ word: w, mode: 'contains' });
+      // default: the word itself (+ suffixes and its English form); *word* = anywhere, even inside other words
+      if (w.startsWith('*') && w.endsWith('*') && w.length > 2) out.push({ word: w.slice(1, -1), mode: 'contains' });
+      else out.push({ word: w.replace(/^"(.+)"$/, '$1'), mode: 'word' });
     }
   }
   return out.slice(0, 100);

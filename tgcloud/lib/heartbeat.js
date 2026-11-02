@@ -1,13 +1,11 @@
 // Telegram Serverless has no timer: the bot only runs when something reaches it. So every update
 // (a message, a button, a channel post, a giveaway join…) also does the work that is due — scheduled
-// posts and giveaways (tick, already on each update), the daily auto-posts and a slice of a running
-// channel cleanup — at most once every 40 s, so busy moments don't repeat it. The cron (endpoints/tick)
+// posts and giveaways (tick, already on each update) and the daily auto-posts — at most once every 40 s, so busy moments don't repeat it. The cron (endpoints/tick)
 // still works too when it's set up; nothing depends on it anymore.
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { now } from './util.js';
 import { autoTick } from './autopost.js';
-import { runJob } from './cleaner.js';
 
 export async function heartbeat() {
   const t = now();
@@ -15,5 +13,4 @@ export async function heartbeat() {
     ON CONFLICT(k) DO UPDATE SET v = excluded.v WHERE CAST(settings.v AS INTEGER) <= ${t - 40} RETURNING v`)).rows[0];
   if (!won) return;
   await autoTick().catch((e) => console.error('auto', e));
-  await runJob(8000).catch((e) => console.error('cleaner', e));
 }

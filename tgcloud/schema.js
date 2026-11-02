@@ -307,6 +307,7 @@ export const clPosts = table('cl_posts', {
   fwd:    integer('fwd').default(0),
   link:   integer('link').default(0),
   gone:   integer('gone').default(0),
+  date:   integer('date'), // when it was posted (Telegram lets a bot delete only the last 48 hours)
 }, (t) => ({
   uniq:   uniqueIndex('uidx_cl_post').on(t.chatId, t.msgId),
   alive:  index('idx_cl_posts_alive').on(t.chatId, t.gone, t.msgId),

@@ -141,7 +141,6 @@ async function handle(m, uid, st) {
   if (st.w?.startsWith('ak:set:') && t) return apiInput(uid, st, m, t);
   if (st.w?.startsWith('tp:') && t && (await P.input(uid, st, t, m.from))) return;
   const fc = fwdChat(m);
-  if (fc) await C.learnForward(fc, m).catch(() => {}); // the cleaner learns the channel's newest post
   if (st.w === 'addch') {
     if (fc) return tryAdd(uid, st, fc.id);
     if (t) return tryAdd(uid, st, '@' + t.replace(/^@/, '').split(/\s+/)[0]);
