@@ -1,6 +1,8 @@
 // The Mini App page «🔐 حذف کامل پست‌های قدیمی»: logs in with the admin's own account (bots can't delete
 // posts older than 48 hours, people can), finds the channel's posts with the chosen words and deletes them,
-// then logs out. Everything runs on the admin's phone: the code and password go only to Telegram.
+// then logs out — right away, or after 30 / 60 minutes if the admin chose to stay logged in (so the next run
+// needs no code). Everything runs on the admin's phone: the code and password go only to Telegram; a kept
+// login lives in the phone's secure storage (Telegram SecureStorage) and is logged out when its time is up.
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { buildMatcher, normalize } from '../../tgcloud/lib/cleantext.js';
@@ -37,7 +39,30 @@ function server(name, input) {
   });
 }
 
+// ---------- phone storage: the kept login goes to SecureStorage when the app has it ----------
+const secure = tg?.SecureStorage;
+function sget(key) {
+  return new Promise((resolve) => {
+    const local = () => { try { resolve(localStorage.getItem(key)); } catch { resolve(null); } };
+    if (!secure?.getItem) return local();
+    try { secure.getItem(key, (e, v) => (e ? local() : resolve(v ?? null))); } catch { local(); }
+  });
+}
+function sset(key, value) {
+  return new Promise((resolve) => {
+    const local = () => { try { value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {} resolve(); };
+    if (!secure?.setItem) return local();
+    try {
+      if (value == null) secure.removeItem(key, () => { try { localStorage.removeItem(key); } catch {} resolve(); });
+      else secure.setItem(key, value, (e) => (e ? local() : resolve()));
+    } catch { local(); }
+  });
+}
+
 const params = new URLSearchParams(location.search);
+let keepUntil = 0; // ms; 0 = log out as soon as the work is done
+let keepTimer = null;
+const clock = (ms) => new Date(ms).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
 let info = null;
 let client = null;
 let channel = null;
@@ -72,9 +97,86 @@ async function boot() {
   try {
     const saved = JSON.parse(localStorage.getItem('uf_api') || 'null');
     if (saved) { $('api-id').value = saved.id; $('api-hash').value = saved.hash; }
+    const k = localStorage.getItem('uf_keep');
+    if (k) for (const el of document.querySelectorAll('input[name=keep]')) el.checked = el.value === k;
   } catch {}
+
+  // a login kept from last time: still in its time → straight to the search; time up (or «logout») → log out
+  let kept = null;
+  try { kept = JSON.parse((await sget('uf_sess')) || 'null'); } catch {}
+  if (kept?.s) {
+    try {
+      client = new TelegramClient(new StringSession(kept.s), kept.id, kept.hash, {
+        connectionRetries: 5, useWSS: true, deviceModel: 'UF Channel Cleaner', appVersion: '1.0', systemVersion: 'Mini App',
+      });
+      client.setLogLevel('error');
+    } catch {
+      kept = null; // a damaged saved login: forget it and start normally
+      client = null;
+      await sset('uf_sess', null);
+    }
+  }
+  if (kept?.s) {
+    if (params.get('logout') || Date.now() >= kept.until) {
+      show('s-keys');
+      $('e-keys').textContent = '⏳ در حال خروج از اکانت…';
+      await logoutNow();
+      $('e-keys').textContent = '🔒 مهلت تموم شده بود؛ از اکانتت خارج شدم.';
+      return;
+    }
+    try {
+      await client.connect();
+      if (await client.checkAuthorization()) {
+        startKeep(kept.until);
+        await findChannel();
+        return;
+      }
+    } catch {}
+    await sset('uf_sess', null); // the login isn't valid anymore (closed from Devices?)
+    client = null;
+  }
   show('s-keys');
 }
+
+// ---------- staying logged in for a while ----------
+function startKeep(until) {
+  keepUntil = until;
+  $('session-bar').classList.remove('hidden');
+  $('session-txt').textContent = `🔓 وارد اکانتت هستم تا ساعت ${clock(until)}؛ بعدش خودکار خارج میشم.`;
+  clearTimeout(keepTimer);
+  keepTimer = setTimeout(async () => {
+    await logoutNow();
+    $('session-txt').textContent = '🔒 مهلت تموم شد و از اکانتت خارج شدم.';
+  }, Math.max(0, until - Date.now()));
+}
+
+async function logoutNow() {
+  let ok = false;
+  try {
+    if (!client.connected) await client.connect();
+    await client.invoke(new Api.auth.LogOut());
+    ok = true;
+  } catch {}
+  try { await client.disconnect(); } catch {}
+  await sset('uf_sess', null);
+  keepUntil = 0;
+  clearTimeout(keepTimer);
+  $('b-logout').classList.add('hidden');
+  $('b-logout2').classList.add('hidden');
+  try { await server('cleanSession', { chat: info.chat, until: 0 }); } catch {}
+  return ok;
+}
+
+$('b-logout').onclick = async () => {
+  $('b-logout').disabled = true;
+  const ok = await logoutNow();
+  $('session-txt').textContent = ok ? '🔒 از اکانتت خارج شدم.' : '⚠️ خروج نشد؛ از تنظیمات تلگرام ← Devices نشست «UF Channel Cleaner» رو ببند.';
+};
+$('b-logout2').onclick = async () => {
+  $('b-logout2').disabled = true;
+  const ok = await logoutNow();
+  $('done-lock').textContent = ok ? '🔒 از اکانتت خارج شدم و تحویلت دادم؛ هیچ نشستی باز نمونده.' : '⚠️ خروج نشد؛ از تنظیمات تلگرام ← Devices نشست «UF Channel Cleaner» رو ببند.';
+};
 
 $('open-my').onclick = (e) => { e.preventDefault(); tg?.openLink ? tg.openLink('https://my.telegram.org/auth') : open('https://my.telegram.org/auth'); };
 
@@ -114,6 +216,14 @@ $('b-keys').onclick = async () => {
     $('b-keys').disabled = false;
     if (!/AUTH_USER_CANCEL/.test(String(e?.errorMessage || e?.message))) err('e-keys', e); // else onError already said why
     return;
+  }
+  const keep = Number(document.querySelector('input[name=keep]:checked')?.value || 0);
+  try { localStorage.setItem('uf_keep', String(keep)); } catch {}
+  if (keep > 0) {
+    const until = Date.now() + keep * 60000;
+    await sset('uf_sess', JSON.stringify({ s: client.session.save(), id, hash, until }));
+    try { await server('cleanSession', { chat: info.chat, until: Math.floor(until / 1000) }); } catch {} // the bot reminds at the end
+    startKeep(until);
   }
   await findChannel();
 };
@@ -236,23 +346,21 @@ $('b-del').onclick = async () => {
 $('b-cancel').onclick = () => finish([]);
 
 async function finish(deleted) {
-  let loggedOut = false;
-  try {
-    await client.invoke(new Api.auth.LogOut());
-    loggedOut = true;
-  } catch {}
-  try { await client.disconnect(); } catch {}
-  try { await server('cleanReport', { chat: info.chat, items: deleted, loggedOut }); } catch {}
+  const keeping = keepUntil > Date.now();
+  const loggedOut = keeping ? false : await logoutNow();
+  try { await server('cleanReport', { chat: info.chat, items: deleted, loggedOut, keepUntil: keeping ? Math.floor(keepUntil / 1000) : 0 }); } catch {}
   $('done-n').textContent = fa(deleted.length);
-  $('done-lock').textContent = loggedOut
-    ? '🔒 از اکانتت خارج شدم و تحویلت دادم؛ هیچ نشستی باز نمونده.'
-    : '⚠️ خروج انجام نشد؛ از تنظیمات تلگرام ← Devices نشست «UF Channel Cleaner» رو ببند.';
+  $('done-lock').textContent = keeping
+    ? `🔓 طبق انتخابت تا ساعت ${clock(keepUntil)} وارد می‌مونم (دفعه‌ی بعد کد نمی‌خواد)؛ بعدش خودکار خارج میشم.`
+    : loggedOut ? '🔒 از اکانتت خارج شدم و تحویلت دادم؛ هیچ نشستی باز نمونده.'
+      : '⚠️ خروج انجام نشد؛ از تنظیمات تلگرام ← Devices نشست «UF Channel Cleaner» رو ببند.';
+  $('b-logout2').classList.toggle('hidden', !keeping);
   show('s-done');
 }
 
 $('b-close').onclick = () => tg?.close();
 
-// leaving halfway: still try to log out
-window.addEventListener('pagehide', () => { try { client?.invoke(new Api.auth.LogOut()); } catch {} });
+// leaving halfway without a kept login: still try to log out
+window.addEventListener('pagehide', () => { if (!(keepUntil > Date.now())) { try { client?.invoke(new Api.auth.LogOut()); } catch {} } });
 
 boot();

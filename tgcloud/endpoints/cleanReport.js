@@ -22,7 +22,9 @@ export default async function (input, ctx) {
   await store.setSetting(`cl:${chat}`, JSON.stringify({ ...c, deleted: (c.deleted || 0) + items.length }));
   const title = (await db.get(sql`SELECT title FROM channels WHERE chat_id = ${chat} LIMIT 1`))?.title || '';
   await send(uid, `🔐 <b>حذف کامل پست‌های قدیمی</b>\n📢 ${esc(title)}\n\n✅ <b>${items.length.toLocaleString('en-US')}</b> پست با اکانت خودت از کانال حذف شد.\n` +
-    (input.loggedOut ? '🔒 اکانتت از برنامه خارج شد و تحویلت داده شد.' : '⚠️ خروج از اکانت انجام نشد؛ از تنظیمات تلگرام ← Devices اون نشست رو ببند.'),
+    (Number(input.keepUntil) > now()
+      ? `🔓 طبق انتخابت تا <b>${await store.localStr(Number(input.keepUntil))}</b> وارد اکانتت می‌مونه؛ بعدش خارج میشه (اگه صفحه بسته باشه، یه دکمه‌ی «🔒 خروج» برات می‌فرستم).`
+      : input.loggedOut ? '🔒 اکانتت از برنامه خارج شد و تحویلت داده شد.' : '⚠️ خروج از اکانت انجام نشد؛ از تنظیمات تلگرام ← Devices اون نشست رو ببند.'),
   [[{ text: '🧹 پنل پاکسازی', callback_data: `cf:p:${chat}` }]]);
   return { ok: true, recorded: items.length };
 }

@@ -576,3 +576,18 @@ export async function input(uid, st, m) {
 }
 
 
+
+/** A kept Mini App login whose time is up: send its owner a «🔒 log out now» button (once). */
+export async function sessionTick() {
+  const all = JSON.parse((await store.getSetting('cl_sess')) || 'null');
+  if (!all) return;
+  let changed = false;
+  for (const [uid, x] of Object.entries(all)) {
+    if (x.told || x.until > now()) continue;
+    x.told = true;
+    changed = true;
+    await send(Number(uid), '⏰ <b>مهلت ورود به اکانتت تموم شد.</b>\n\nصفحه‌ی «حذف کامل» بسته بود، برای همین هنوز خارج نشدم. این دکمه رو بزن تا همین الان از اکانتت خارج بشم:',
+      [[{ text: '🔒 خروج از اکانتم', web_app: { url: `https://app8719466331.tgcloud.ai/clean?c=${x.chat}&logout=1` }, style: 'danger' }]]);
+  }
+  if (changed) await store.setSetting('cl_sess', JSON.stringify(all));
+}
