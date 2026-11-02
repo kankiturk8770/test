@@ -32,8 +32,10 @@ export function escapeHtml(s) {
 }
 
 export function snippet(s, n = 60) {
-  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
-  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+  // by whole characters: fancy letters (𝚄𝙵…) and emoji are two UTF-16 units, and cutting one in half
+  // makes Telegram reject the whole message
+  const t = [...String(s ?? '').replace(/\s+/g, ' ').trim()];
+  return t.length > n ? t.slice(0, n - 1).join('') + '…' : t.join('');
 }
 
 function escapeRegex(s) {
