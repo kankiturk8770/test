@@ -21,7 +21,8 @@ export async function menuKb(uid = null) {
   // 🟢 create · 🔵 sections · 🔴 the cleaner · plain = settings and help
   const rows = [[btn('🆕  ساخت اعلام روم  🎮', 'new', 'success')],
     [btn('🎁 قرعه‌کشی', 'gv', 'primary'), btn('✨ پست زیبا', 'post', 'primary')],
-    [btn('🏆 تورنمنت', 'tn', 'primary'), btn('🧹 پاکسازی کانال', 'cf', 'danger')]];
+    [btn('🏆 تورنمنت', 'tn', 'primary'), btn('⚡️ مینی‌کاپ', 'mc', 'success')],
+    [btn('🧹 پاکسازی کانال', 'cf', 'danger')]];
   if (await aiEnabled()) rows.push([btn('🪄 هوش مصنوعی', 'ai', 'success'), btn('📰 پست خودکار', 'auto', 'primary')]);
   rows.push([btn('⏰ زمان‌بندی‌ها', 'jobs', 'primary'), btn('📢 کانال‌های من', 'chs', 'primary')],
     [btn('📊 آمار من', 'stats'), btn('🔑 تنظیمات API', 'ak')]);
@@ -372,10 +373,11 @@ export const HELP = '❓ <b>راهنما</b>\n\n' +
   '🪄 <b>هوش مصنوعی:</b> فقط بنویس چی میخوای، مثلا «روم ساعت ۱۱ لیویک اسکواد ۱۰۰ یوسی به MVP»\n' +
   '⏰ <b>زمان‌بندی:</b> هر پست رو برای ساعت دلخواه تنظیم کن\n' +
   '🏆 <b>تورنمنت:</b> ثبت‌نام ۱۰۰ تیم، گروه‌بندی، رمز روم خصوصی برای لیدرها و جدول امتیاز از روی اسکرین‌شات\n' +
+  '⚡️ <b>مینی‌کاپ:</b> یه تورنمنت کوچیک و سریع (چند روم + فینال) جدا از تورنمنت اصلی، با جایزه‌ی مستقیم توی ربات\n' +
   '🧹 <b>پاکسازی کانال:</b> هر پستی که یه کلمه‌ی خاص داره (مثلاً «روم») رو از کل کانال پاک کن، حتی قدیمی‌ترین‌ها؛ پست‌های جدید هم خودکار فیلتر میشن\n' +
   '🔑 <b>تنظیمات API:</b> کلید Gemini و کلید Pro\n\n' +
   '<b>دستورها:</b>\n/new اعلام روم\n/giveaway قرعه‌کشی\n/post پست زیبا\n/jobs زمان‌بندی‌ها\n' +
-  '/channels کانال‌ها\n/addchannel افزودن کانال\n/clean پاکسازی کانال\n/stats آمار\n/tournament تورنمنت\n/api تنظیمات API\n/cancel لغو';
+  '/channels کانال‌ها\n/addchannel افزودن کانال\n/minicup مینی‌کاپ\n/clean پاکسازی کانال\n/stats آمار\n/tournament تورنمنت\n/api تنظیمات API\n/cancel لغو';
 
 export async function welcome(uid, name = '') {
   return send(uid, `🎮 <b>سلام ${esc(name)}، خوش اومدی!</b> 👋\n\n` +

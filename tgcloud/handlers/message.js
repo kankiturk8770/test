@@ -16,6 +16,7 @@ import { apiPanel, apiInput } from '../lib/apikeys.js';
 import * as P from '../lib/players.js';
 import { adminPanel, adminJoin } from '../lib/admins.js';
 import * as C from '../lib/cleaner.js';
+import * as MC from '../lib/minicup.js';
 import { heartbeat } from '../lib/heartbeat.js';
 
 // Settings the owner can set from the chat (keys never go in the code).
@@ -31,6 +32,8 @@ async function command(m, uid, st, cmd, arg, rest) {
   if (cmd === '/start' && /^tr_\d+$/.test(arg)) return P.regIntro(uid, Number(arg.slice(3))); // tournament registration
   if (cmd === '/start' && /^tj_\w+$/.test(arg)) return P.joinIntro(uid, st, arg.slice(3)); // a teammate's invite link
   if (cmd === '/start' && /^adm_\w+$/.test(arg)) return adminJoin(uid, m.from, arg.slice(4));
+  if (cmd === '/start' && /^mc_\d+$/.test(arg)) return MC.regStart(uid, st, Number(arg.slice(3))); // ⚡️ mini-cup registration
+  if (cmd === '/minicup') return MC.home(uid, st);
   if (cmd === '/team' || cmd === '/dashboard') return P.dashboard(uid);
   if (cmd === '/admins') return adminPanel(uid);
   if (cmd === '/clean') return C.action(uid, st, 'cf', null);
@@ -106,10 +109,12 @@ export default async function (m) {
         if (/^tr_\d+$/.test(arg)) return await P.regIntro(uid, Number(arg.slice(3)));
         if (/^tj_\w+$/.test(arg)) return await P.joinIntro(uid, st, arg.slice(3));
         if (/^adm_\w+$/.test(arg)) return await adminJoin(uid, m.from, arg.slice(4));
+        if (/^mc_\d+$/.test(arg)) return await MC.regStart(uid, st, Number(arg.slice(3)));
       }
       const low = cmd?.split('@')[0].toLowerCase();
       if (low === '/team' || low === '/dashboard') return await P.dashboard(uid);
       if (st.w?.startsWith('tp:') && m.text && !m.text.startsWith('/') && (await P.input(uid, st, m.text.trim(), m.from))) return;
+      if (st.w?.startsWith('mc:team:') && (await MC.teamInput(uid, st, m))) return; // ⚡️ a leader's team name
       return await P.userMenu(uid);
     } finally {
       await store.saveSession(uid, st);
@@ -134,6 +139,9 @@ async function handle(m, uid, st) {
     const cmd = parts[0].split('@')[0].toLowerCase();
     return command(m, uid, st, cmd, parts[1] || '', t.slice(parts[0].length).trim());
   }
+  // ⚡️ mini-cup: a team name (anyone can lead a team) and the admin's answers
+  if (st.w?.startsWith('mc:team:') && (await MC.teamInput(uid, st, m))) return;
+  if (st.w?.startsWith('mc:') && (await MC.adminInput(uid, st, m))) return;
   // the channel cleaner's prompts (words, quick purge, test, backup channel)
   if (st.w?.startsWith('cf:') && (await C.input(uid, st, m))) return;
   // tournament (screenshots, results, teams, room) and API keys come before the post builder

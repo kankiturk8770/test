@@ -326,3 +326,20 @@ export const clLogs = table('cl_logs', {
 }, (t) => ({
   byChat: index('idx_cl_logs_chat').on(t.chatId, t.id),
 }));
+
+// ---------- ⚡️ mini-cup (lib/minicup.js): a small warm-up tournament, separate from the big one ----------
+// The cup itself lives in settings (mc:<id>); its teams here, so many leaders can register at once.
+// grp: the qualifier room (0, 1, …) once registration is closed; fin = 1 for the finalists.
+export const mcTeams = table('mc_teams', {
+  id:    integer('id').primaryKey({ autoIncrement: true }),
+  cupId: integer('cup_id').notNull(),
+  uid:   integer('uid').notNull(),
+  name:  text('name'),
+  team:  text('team').notNull(),
+  grp:   integer('grp'),
+  fin:   integer('fin').default(0),
+  at:    integer('at'),
+}, (t) => ({
+  uniq:  uniqueIndex('uidx_mc_team').on(t.cupId, t.uid),
+  byCup: index('idx_mc_cup').on(t.cupId, t.grp),
+}));

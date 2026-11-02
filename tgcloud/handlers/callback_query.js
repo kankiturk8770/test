@@ -16,6 +16,7 @@ import * as P from '../lib/players.js';
 import { adminPanel, adminAction } from '../lib/admins.js';
 import * as C from '../lib/cleaner.js';
 import * as PG from '../lib/pubg.js';
+import * as MC from '../lib/minicup.js';
 import { build } from '../lib/posts.js';
 import { heartbeat } from '../lib/heartbeat.js';
 
@@ -34,6 +35,7 @@ async function route(c) {
     return tick().catch((e) => console.error('tick', e));
   }
   if (data.startsWith('gc:')) return claimTap(c); // "get the prize" under the results
+  if (data.startsWith('mc:j:')) return MC.joinTap(c); // ⚡️ mini-cup: «register» under the channel post
   if (data.startsWith('gj:')) { // join button in a channel
     await gvJoin(c);
     return tick().catch((e) => console.error('tick', e));
@@ -92,6 +94,7 @@ async function handle(c, uid, st, data) {
   if (data === 'tn' || data.startsWith('tn:')) return T.action(uid, st, data, mid);
   if (data === 'ak' || data.startsWith('ak:')) return apiAction(uid, st, data);
   if (data === 'cf' || data.startsWith('cf:')) return C.action(uid, st, data, mid); // 🧹 channel cleaner
+  if (data === 'mc' || data.startsWith('mc:')) return MC.action(uid, st, data, mid); // ⚡️ mini-cup (admin)
   if (data.startsWith('px:')) return PG.action(uid, data, build); // 🔑 reveal now · 📈 daily report on/off
   if (data === 'adm') return adminPanel(uid);
   if (data.startsWith('adm:')) return adminAction(uid, data);
