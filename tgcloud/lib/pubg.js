@@ -125,3 +125,39 @@ export async function action(uid, data, revealText) {
       a === 'off' ? [[B('🔔 روشن کردن گزارش روزانه', 'px:mb:on', 'success')], [B('🔙 برگشت به منو', 'menu')]] : null);
   }
 }
+
+// ---------- ⏰ a reminder in the channel before the room starts ----------
+export const REMIND_STEPS = [undefined, '30', '15', '5'];
+export const remindLabel = (v) => (v ? `${fa(v)} دقیقه قبل از شروع` : 'خاموش ❌');
+
+/** Plan the reminder for a room post the bot just sent (if one was chosen and the start time is known). */
+export async function planRemind(chat, msgId, d) {
+  if (!d.remind) return null;
+  const start = await startTime(d.time);
+  if (!start) return null;
+  const at = start - Number(d.remind) * 60;
+  if (at <= now() + 60 || at > now() + 12 * 3600) return null; // too late already (or not today)
+  const list = JSON.parse((await store.getSetting('pg_remind')) || '[]');
+  list.push({ c: Number(chat), m: msgId, at, start, mins: Number(d.remind) });
+  await store.setSetting('pg_remind', JSON.stringify(list.slice(-50)));
+  return at;
+}
+
+/** Send the due reminders (heartbeat / cron). One that's very late (the room already started) is dropped. */
+export async function remindTick() {
+  const list = JSON.parse((await store.getSetting('pg_remind')) || 'null');
+  if (!list?.length) return;
+  const due = list.filter((x) => x.at <= now());
+  if (!due.length) return;
+  await store.setSetting('pg_remind', JSON.stringify(list.filter((x) => x.at > now()))); // claim them first
+  for (const x of due) {
+    const left = Math.round((x.start - now()) / 60);
+    if (left < 1) continue; // the room already started: a late reminder would only confuse
+    const start = (await store.localStr(x.start)).replace(/^\S+ /, '');
+    await call('sendMessage', {
+      chat_id: x.c, parse_mode: 'HTML',
+      text: `⏰ <b>${fa(left)} دقیقه تا شروع روم!</b>\n🕗 شروع: <b>${start}</b>\n🔥 آماده باشید`,
+      reply_parameters: { message_id: x.m, allow_sending_without_reply: true },
+    });
+  }
+}

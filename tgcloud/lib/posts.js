@@ -4,7 +4,7 @@ import { STYLES } from './data.js';
 import { user, bumpCount } from './store.js';
 import { openGiveaway } from './gv.js';
 import { planDelete } from './cleaner.js';
-import { revealAt, planReveal } from './pubg.js';
+import { revealAt, planReveal, planRemind } from './pubg.js';
 import { localStr } from './store.js';
 
 export function build(d) {
@@ -60,6 +60,7 @@ export async function deliver(uid, base, d, targets, pin) {
       const shown = at ? { ...d, room: null, roomAt: (await localStr(at)).replace(/^\S+ /, '') } : d;
       const r = await (base === 'post' ? sendBeauty : sendPost)(t, shown);
       if (r.ok && at) await planReveal(t, r.result.message_id, d, at, r.result.caption !== undefined, uid);
+      if (r.ok && base === 'room') r.remindAt = await planRemind(t, r.result.message_id, d); // ⏰ chosen in the preview
       good = r.ok;
       err = r.description;
       if (good && pin) await call('pinChatMessage', { chat_id: t, message_id: r.result.message_id });

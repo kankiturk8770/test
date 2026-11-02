@@ -8,7 +8,7 @@ import { sql } from 'sdk/db';
 import { now } from './util.js';
 import { autoTick } from './autopost.js';
 import { blankTick, sessionTick, timedTick } from './cleaner.js';
-import { revealTick, membersTick } from './pubg.js';
+import { revealTick, membersTick, remindTick } from './pubg.js';
 import { build } from './posts.js';
 
 export async function heartbeat() {
@@ -21,5 +21,6 @@ export async function heartbeat() {
   await sessionTick().catch((e) => console.error('session', e)); // a kept Mini App login whose time is up
   await timedTick().catch((e) => console.error('timed', e)); // 🕒 posts planned to delete themselves
   await revealTick(build).catch((e) => console.error('reveal', e)); // 🔑 room ID/Pass due
+  await remindTick().catch((e) => console.error('remind', e)); // ⏰ «15 minutes to the room!»
   await membersTick().catch((e) => console.error('members', e)); // 📈 the daily member report
 }

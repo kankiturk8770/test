@@ -8,7 +8,7 @@ import * as store from './store.js';
 import { sendPost, sendBeauty, deliver } from './posts.js';
 import { gvMake, sendGvPost } from './gv.js';
 import { aiEnabled, writePost } from './ai.js';
-import { REVEAL_STEPS, revealLabel } from './pubg.js';
+import { REVEAL_STEPS, revealLabel, REMIND_STEPS, remindLabel } from './pubg.js';
 
 const steps = (s) => SETS[s.kind];
 // under a "that answer didn't work" note while building a post
@@ -69,6 +69,7 @@ async function previewKb(uid, s) {
   rows.push([btn('📌 پین کردن: ' + (s.pin ? 'روشن ✅' : 'خاموش ❌'), 'pin')]);
   // delete the post from the channel by itself after a while (a bot may delete only within 48 hours)
   if (kbase(s.kind) === 'room' && s.d.room) rows.push([btn('🔑 آیدی/پسورد: ' + revealLabel(s.d.reveal), 'rvl')]);
+  if (kbase(s.kind) === 'room') rows.push([btn('⏰ یادآوری توی کانال: ' + remindLabel(s.d.remind), 'rmd')]);
   if (!gv) rows.push([btn('🕒 حذف خودکار از کانال: ' + (s.d.autodel ? `${s.d.autodel} ساعت بعد` : 'خاموش ❌'), 'adel')]);
   rows.push([btn('🚀  ارسال الان  🚀', 'go'), btn('⏰ زمان‌بندی', 'sch')]);
   rows.push([btn('❌ لغو', 'cancel')]);
@@ -403,6 +404,11 @@ export async function sessionCallback(uid, st, data, mid) {
   }
   if (data === 'pin') {
     s.pin = !s.pin;
+    if (s.ctl) await markup(uid, s.ctl, await previewKb(uid, s));
+    return;
+  }
+  if (data === 'rmd') { // a reminder in the channel: off → 30 / 15 / 5 minutes before the start
+    s.d.remind = REMIND_STEPS[(REMIND_STEPS.indexOf(s.d.remind) + 1) % REMIND_STEPS.length];
     if (s.ctl) await markup(uid, s.ctl, await previewKb(uid, s));
     return;
   }
