@@ -206,18 +206,26 @@ async function rights(chat) {
   return null;
 }
 
-/** The one screen: «send the word whose posts should go». (The bot waits for it: st.w = cf:quick:<chat>.) */
+/** The one screen: «send the word whose posts should go» + the auto-delete switch. (st.w = cf:quick:<chat>) */
 export async function panel(uid, chat, mid = null, note = '') {
   const ch = (await myChannels(uid)).find((x) => String(x.id) === String(chat));
   if (!ch) return home(uid, mid);
   const warn = await rights(chat);
+  const c = await cfg(chat);
+  const auto = c.auto ? (await words(chat, 'block')).map((w) => `<code>${esc(w.word)}</code>`).join('، ') : '';
   return edit(uid, mid,
     `🧹 <b>پاک کردن پست‌های کانال</b>\n📢 ${esc(ch.title)}\n${LINE}\n` +
-    '✍️ <b>کلمه‌ای که می‌خوای پست‌هاش پاک بشن رو همین‌جا بفرست.</b>\n\n' +
-    'مثلاً: <code>روم</code>\n\n' +
-    '💡 فارسی و انگلیسیش با هم پیدا میشه (روم = room = ROOM)' +
+    '✍️ <b>کلمه‌ای که می‌خوای پست‌هاش پاک بشن رو همین‌جا بفرست.</b>\n' +
+    'مثلاً: <code>روم</code>\n' +
+    '💡 فارسی و انگلیسیش با هم پیدا میشه (روم = room = ROOM)\n' +
+    '🔒 قبل از پاک کردن، تعداد رو نشونت میدم و ازت اجازه می‌گیرم.\n\n' +
+    (c.auto ? `🛡 حذف خودکار: <b>روشن</b> — پست‌های جدیدی که ${auto} دارن، خودکار پاک میشن.`
+      : '🛡 حذف خودکار: <b>خاموش</b> — ربات بدون اجازه‌ی تو هیچ پستی رو پاک نمی‌کنه.') +
     (warn ? `\n\n${warn}` : '') + (note ? `\n\n${note}` : ''),
-    [[B('🔙 برگشت به منو', 'menu')]]);
+    [
+      [c.auto ? R('⛔️ خاموش کردن حذف خودکار', `cf:ao:${chat}`) : G('🛡 روشن کردن حذف خودکار پست‌های جدید', `cf:ai:${chat}`)],
+      [B('🔙 برگشت به منو', 'menu')],
+    ]);
 }
 
 const PAGE = 8;
@@ -247,13 +255,33 @@ const ADD_HELP = 'کلمه یا کلمه‌ها رو بفرست؛ چندتا ر�
   '🔹 برای «هر جای متن» بین دو ستاره: <code>*روم*</code> · 🔹 Regex: <code>/prize|جایزه/</code>';
 
 /** Delete the posts with the word: the bot deletes the last 48 hours; older ones go with the admin's account. */
-async function purge(uid, chat, mid, quick = null) {
+async function purge(uid, chat, mid, quick = null, confirmed = false) {
   const c = await cfg(chat);
   const matcher = await matcherFor(chat, c, quick);
   if (matcher.empty) return panel(uid, chat, mid);
   const warn = await rights(chat);
   if (warn) return panel(uid, chat, mid, warn);
   const { fresh, old } = await collect(chat, matcher);
+  if (!confirmed) {
+    // nothing is deleted yet: show what was found and ask
+    const w = esc(quick?.word || '');
+    if (!fresh.length && !old) {
+      return edit(uid, mid,
+        `🔎 <b>«${w}»</b>\n${LINE}\n✨ پستی با این کلمه پیدا نکردم.\nاگه پست‌های خیلی قدیمی داری، با دکمه‌ی زیر کل کانال رو بگرد 👇\n\n✍️ برای یه کلمه‌ی دیگه، همین الان بفرستش.`,
+        [[FULL(chat, quick?.word, '🔐 گشتن کل کانال (پست‌های قدیمی)')], [B('🔙 برگشت به منو', 'menu')]]);
+    }
+    return edit(uid, mid,
+      `🔎 <b>«${w}»</b>\n${LINE}\n` +
+      (fresh.length ? `🆕 <b>${fmt(fresh.length)}</b> پست از ۲ روز اخیر\n` : '') +
+      (old ? `📦 <b>${fmt(old)}</b> پست قدیمی‌تر\n` : '') +
+      '\n❓ <b>پاک کنم؟</b>' +
+      (old ? '\n\n💡 پست‌های قدیمی رو تلگرام فقط به خودت اجازه میده پاک کنی؛ دکمه‌ی 🔐 صفحه‌ش رو باز می‌کنه.' : ''),
+      [
+        fresh.length ? [R(`🗑 آره، ${fmt(fresh.length)} پست رو پاک کن`, `cf:qy:${chat}`)] : [],
+        old ? [FULL(chat, quick?.word, `🔐 پاک کردن ${fmt(old)} پست قدیمی`)] : [],
+        [G('❌ نه، پاک نکن', `cf:p:${chat}`)],
+      ]);
+  }
   const r = fresh.length ? await removePosts(chat, c, fresh, quick ? 'quick' : 'purge') : { deleted: 0, old: 0, rate: false };
   const tooOld = old + r.old;
   const word = quick?.word || '';
@@ -429,6 +457,20 @@ export async function action(uid, st, data, mid) {
     case 'p':
       st.w = `cf:quick:${chat}`;
       return panel(uid, chat, mid);
+    case 'qy': // «آره، پاک کن» — the only way a word's posts get deleted
+      st.w = `cf:quick:${chat}`;
+      if (!st.clq || st.clq.chat !== chat) return panel(uid, chat, mid, '⌛️ دوباره کلمه رو بفرست.');
+      return purge(uid, chat, mid, st.clq, true);
+    case 'ai': // turning auto-delete on: which words?
+      st.w = `cf:auto:${chat}`;
+      return edit(uid, mid,
+        `🛡 <b>روشن کردن حذف خودکار</b>\n${LINE}\nکلمه‌هایی که می‌خوای <b>پست‌های جدیدِ</b> دارای اون‌ها، همون لحظه‌ی انتشار خودکار پاک بشن رو بفرست (هر خط یکی).\n\nمثلاً: <code>روم</code>\n\n⚠️ پست‌هایی که الان توی کانال هستن دست نمی‌خورن.`,
+        [[G('❌ نه، خاموش بمونه', `cf:p:${chat}`)]]);
+    case 'ao': // turning auto-delete off
+      await patchCfg(chat, { auto: false });
+      await db.run(sql`DELETE FROM cl_words WHERE chat_id = ${chat} AND kind = 'block'`);
+      st.w = `cf:quick:${chat}`;
+      return panel(uid, chat, mid, '⛔️ حذف خودکار خاموش شد.');
     case 'w': return wordList(uid, chat, b === 'allow' ? 'allow' : 'block', Number(c3) || 0, mid);
     case 'wa':
       st.w = `cf:add:${chat}:${b === 'allow' ? 'allow' : 'block'}`;
@@ -522,6 +564,19 @@ export async function input(uid, st, m) {
       await send(uid, '🧠 پست‌های مربوط به روم که خود کلمه‌ی «روم» رو ندارن (ساعت، مپ، جایزه، ID و Pass…) هم تشخیص بدم و حذف کنم؟',
         [[G('✅ آره، روشن کن', `cf:t:${chat}:smart`), B('نه', `cf:p:${chat}`)]]);
     }
+    return true;
+  }
+  if (what === 'auto') {
+    const items = parseKeywordInput(t).filter((i) => i.mode !== 'regex' || !regexError(i.word));
+    if (!items.length) {
+      await send(uid, '✍️ یه کلمه بفرست، مثلاً: <code>روم</code>', [[G('❌ نه، خاموش بمونه', `cf:p:${chat}`)]]);
+      return true;
+    }
+    await db.run(sql`DELETE FROM cl_words WHERE chat_id = ${chat} AND kind = 'block'`);
+    for (const it of items) await db.run(sql`INSERT INTO cl_words (chat_id, word, mode, kind, hits) VALUES (${chat}, ${it.word}, ${it.mode}, 'block', 0)`);
+    await patchCfg(chat, { auto: true });
+    st.w = `cf:quick:${chat}`;
+    await panel(uid, chat, null, '✅ حذف خودکار روشن شد.');
     return true;
   }
   if (what === 'quick') {
