@@ -333,7 +333,7 @@ async function check(m, rows) {
 }
 
 // ---------- reading a screenshot ----------
-const SYSTEM = `You are an expert PUBG Mobile tournament data extractor.
+export const SYSTEM = `You are an expert PUBG Mobile tournament data extractor.
 I am providing you with post-match scoreboard screenshots from a single match, along with a JSON list of registered teams in this lobby (including team_id, team_name, igl_name, clan_tag and slot_number).
 Instead of raw screenshots the input may also be ONE tidy summary (an image or plain text, often made by another AI) listing every squad by rank: rank, team name or clan tag and/or player names, and kills. Read it the same way.
 
@@ -356,7 +356,7 @@ Return ONLY a valid JSON array with this exact schema:
     "players": [{ "name": "×͜×ALI", "kills": 7 }, { "name": "×͜×REZA", "kills": 5 }, { "name": "×͜×AMIR", "kills": 3 }, { "name": "×͜×SINA", "kills": 1 }]
   }
 ]`;
-const SCHEMA = {
+export const SCHEMA = {
   type: 'ARRAY',
   items: {
     type: 'OBJECT',

@@ -336,6 +336,7 @@ export const mcTeams = table('mc_teams', {
   uid:   integer('uid').notNull(),
   name:  text('name'),
   team:  text('team').notNull(),
+  members: text('members'), // JSON: in-game names (optional; helps reading the screenshots)
   grp:   integer('grp'),
   fin:   integer('fin').default(0),
   at:    integer('at'),
